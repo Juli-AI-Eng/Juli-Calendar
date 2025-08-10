@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  mcp-server:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    image: reclaim-mcp:latest
+    container_name: reclaim-mcp-server
+    ports:
+      - "5002:5002"
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - PYTHONUNBUFFERED=1
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - RECLAIM_API_KEY=${RECLAIM_API_KEY}
+      - NYLAS_API_KEY=${NYLAS_API_KEY}
+      - NYLAS_GRANT_ID=${NYLAS_GRANT_ID}
+    volumes:
+      # Mount source code for hot reload in development
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  test-runner:
+    build: .
+    image: reclaim-mcp:latest
+    container_name: reclaim-mcp-tests
+    environment:
+      - PYTHONDONTWRITEBYTECODE=1
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - RECLAIM_API_KEY=${RECLAIM_API_KEY}
+      - NYLAS_API_KEY=${NYLAS_API_KEY}
+      - NYLAS_GRANT_ID=${NYLAS_GRANT_ID}
+      - TEST_SERVER_URL=http://mcp-server:5002
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./logs:/app/logs
+      - ./.env.test:/app/.env.test:ro
+    command: pytest tests/e2e -xvs
+    depends_on:
+      mcp-server:
+        condition: service_healthy
