@@ -1,69 +1,177 @@
-# reclaim-sdk - Python SDK for Reclaim.ai
+# Juli Calendar Agent - MCP Server
 
-⚠️ **WARNING: Major Changes in Version 0.5+** ⚠️
+An intelligent calendar and task management agent that seamlessly integrates Reclaim.ai (for smart task scheduling) and Nylas (for universal calendar access). Built as an MCP (Model Context Protocol) server for Juli AI, it uses OpenAI GPT-5 to understand natural language and handle complex scheduling operations.
 
-The codebase has undergone substantial modifications starting from version 0.5. These updates introduce breaking changes that may impact existing implementations. Please consult the documentation thoroughly before upgrading from earlier versions.
+## Key Features
 
-reclaim-sdk is a Python SDK designed for the Reclaim.ai API. It offers a straightforward and developer-friendly interface for managing tasks within Reclaim.ai. Please note that this SDK is not officially affiliated with Reclaim.ai and has been reverse-engineered from the Reclaim.ai web app, as well as utilizing the Swagger Spec provided by AJ from Reclaim.ai =>[Swagger Spec](https://api.app.reclaim.ai/swagger/reclaim-api-0.1.yml). Consequently, there may be bugs, and the API is subject to change without notice. Version stability is not guaranteed.
+### 🤖 Intelligent Natural Language Understanding
+- **GPT-5 Integration**: Uses OpenAI's latest model with strict schema validation for reliable parsing
+- **Smart Routing**: Automatically determines whether to create a task (Reclaim.ai) or calendar event (Nylas)
+- **Context Awareness**: Understands time zones, relative dates ("tomorrow at 2pm"), and participant mentions
 
-## Features
-At present, reclaim-sdk exclusively supports task management. Its primary function is to integrate various tools with Reclaim.ai, enabling the efficient handling of tasks from project management, calendars, and similar applications within Reclaim.ai. For other features, such as managing habits or custom hours, users should utilize the Reclaim.ai web app directly.
+### 📋 Task Management (via Reclaim.ai)
+- Create, update, complete, and delete tasks with natural language
+- Smart scheduling that works around your calendar
+- Priority-based task management (P1-P4)
+- Duration estimation and due date handling
 
-**If something is missing for you, please open an issue or a pull request.**
+### 📅 Calendar Events (via Nylas)
+- Universal calendar support (Google Calendar, Outlook, iCloud, and more)
+- Create meetings with participants (with approval flow)
+- Cancel and reschedule events
+- Participant email validation and handling
 
-## Installation
-To install reclaim-sdk, simply run the following command:
-```bash
-pip install reclaim-sdk
+### ✅ Safety & Approval System
+- **Participant Protection**: Events with other people require explicit approval
+- **Bulk Operation Safety**: Mass deletions/updates need confirmation
+- **Duplicate Detection**: Smart detection prevents accidental duplicates (with numbered sequence support)
+- **Conflict Resolution**: Identifies scheduling conflicts and suggests alternatives
+
+### 🔍 Advanced Features
+- **Availability Checking**: Find free time slots across both tasks and calendar
+- **Schedule Optimization**: AI-powered suggestions for better time management
+- **Workload Analysis**: Understand your productivity patterns
+- **Semantic Search**: Find tasks and events using natural language
+
+## Quick Start
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/Juli-AI-Eng/Juli-Calendar.git
+   cd Juli-Calendar
+   ```
+
+2. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Configure environment**
+   ```bash
+   cp .env.example .env
+   # Edit .env and add your OpenAI API key
+   ```
+
+4. **Run the server**
+   ```bash
+   # Production mode
+   python scripts/run_server.py --mode prod --port 5000
+
+   # E2E testing mode
+   python scripts/run_server.py --mode e2e --port 5002
+   ```
+
+5. **Connect via Juli**
+   - The server will be available at `http://localhost:5002`
+   - Juli will handle credential injection for Reclaim.ai and Nylas
+
+## Architecture
+
+This MCP server acts as an intelligent bridge between Juli AI and your productivity tools:
+
+```
+User → Juli → MCP Server → GPT-5 Intent Router → Reclaim.ai (tasks)
+                                              → Nylas (calendar events)
 ```
 
-## Configuration
-You can get an API key from [here](https://app.reclaim.ai/settings/developer).
+The system uses multiple specialized AI components:
+- **Intent Router**: Determines task vs. event and extracts basic information
+- **TaskAI**: Specialized parser for Reclaim.ai task operations
+- **EventAI**: Specialized parser for Nylas calendar events
+- **Approval System**: Enforces safety checks for sensitive operations
 
-There are now two ways to configure the SDK with your API key:
+## Tools Available
 
-1. Using the `RECLAIM_TOKEN` environment variable:
-   ```python
-   import os
-   os.environ["RECLAIM_TOKEN"] = "YOUR_API_KEY"
-   ```
+### 🎯 manage_productivity
+Manage all aspects of your productivity with natural language:
+- Create and track tasks
+- Schedule meetings and appointments
+- Check availability
+- Block time for focused work
 
-2. Using the new `configure` method:
-   ```python
-   from reclaim_sdk.client import ReclaimClient
-   
-   ReclaimClient.configure(token="YOUR_API_KEY")
-   ```
+### 🔍 find_and_analyze
+Search and analyze your productivity data:
+- Find tasks and events
+- Analyze workload patterns
+- Get productivity insights
+- Track project progress
 
-The `configure` method allows you to set up the client with your API token (and optionally a base URL) at any point in your code before making API calls.
+### 📊 check_availability
+Check availability and find free time:
+- Check specific time slots
+- Find available meeting times
+- Identify scheduling conflicts
+- Get smart suggestions
 
-## Usage
-The SDK uses Pydantic models for better type checking and data validation. Please refer to code examples below:
+### ⚡ optimize_schedule
+Optimize your schedule intelligently:
+- Rebalance workload
+- Find optimal times for tasks
+- Resolve scheduling conflicts
+- Create optimization action plans
 
-- [Task Management](/examples/task_management.py)
+## Setup Guide
 
-## Contributing
-Contributions are welcome. Please open an issue or a pull request. If you want to add a new resource, please have a look at the [`BaseResource` class](/reclaim_sdk/resources/base.py). The [`Task` class](/reclaim_sdk/resources/task.py) is a good example of how to implement a new resource. Reference the [Swagger Spec](https://api.app.reclaim.ai/swagger/reclaim-api-0.1.yml) for the available endpoints and also use the network tab in the browser to see the request and response payloads, as the Swagger Spec may not always be up-to-date or complete.
+### Prerequisites
+
+1. **Reclaim.ai Account**: Sign up at [app.reclaim.ai](https://app.reclaim.ai)
+2. **Nylas Account**: Sign up at [dashboard.nylas.com](https://dashboard-v3.nylas.com/register?utm_source=juli) (free tier available)
+3. **OpenAI API Key**: For AI functionality
+
+### Detailed Setup
+
+See [Deployment Guide](docs/DEPLOYMENT.md) for detailed setup instructions.
+
+## Development
+
+### Running Tests
+
+```bash
+# Unit tests
+pytest tests/unit -v
+
+# Integration tests
+pytest tests/integration -v
+
+# E2E tests (requires real API credentials in .env.test)
+pytest tests/e2e -v
+```
+
+### Project Structure
+
+```
+├── src/
+│   ├── server.py          # Main Flask server
+│   ├── ai/                # AI components (routing, NLU)
+│   ├── tools/             # MCP tool implementations
+│   └── auth/              # Authentication handling
+├── tests/                 # Test suites
+├── scripts/               # Utility scripts
+├── manual_tests/          # Manual testing scripts
+└── juli-toolkit-config.json  # Juli integration config
+```
+
+## Documentation
+
+- [Tools Documentation](docs/TOOLS_DOCUMENTATION.md) - Tool schemas and examples
+- [Deployment Guide](docs/DEPLOYMENT.md) - Production deployment
+- [Development Guide](docs/MCP_DEVELOPER_GUIDE.md) - Contributing guidelines
+- [Approval System](docs/APPROVAL_SYSTEM_GUIDE.md) - How approval flows work
+- [OpenAI Function Calling](docs/FUNCTION_CALLING_OPENAI.md) - GPT-5 integration details
+
+## Security
+
+- **No stored credentials**: User credentials are injected per-request via headers
+- **Approval flows**: Sensitive operations require explicit approval
+- **Secure by design**: Following MCP best practices
 
 ## License
-[MIT License](https://choosealicense.com/licenses/mit/)
 
-Copyright (c) 2022 Laurence Labusch
+MIT License - See [LICENSE](LICENSE) file for details.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+## Support
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+For issues and questions:
+- Open an issue on GitHub
+- Check the [troubleshooting guide](DEPLOYMENT.md#troubleshooting)
+- Review the [documentation](docs/)
