@@ -20,24 +20,16 @@ class ReclaimClientConfig(BaseModel):
 
 
 class ReclaimClient:
-    _instance: Optional["ReclaimClient"] = None
-    _config: Optional[ReclaimClientConfig] = None
+    """
+    Thread-safe Reclaim client that creates a new instance per configuration.
+    No longer uses singleton pattern to avoid cross-user credential issues.
+    """
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance._initialize()
-        return cls._instance
+    def __init__(self, config: ReclaimClientConfig):
+        self._config = config
+        self._initialize()
 
     def _initialize(self) -> None:
-        if self._config is None:
-            token = os.environ.get("RECLAIM_TOKEN")
-            if not token:
-                raise ValueError(
-                    "Reclaim token is required. Use ReclaimClient.configure() or set RECLAIM_TOKEN environment variable."
-                )
-            self._config = ReclaimClientConfig(token=token)
-
         # Add a default timeout to prevent hanging requests
         default_timeout = float(os.getenv("RECLAIM_API_TIMEOUT_SECONDS", "60.0"))
         
@@ -49,13 +41,25 @@ class ReclaimClient:
 
     @classmethod
     def configure(cls, token: str, base_url: Optional[str] = None) -> "ReclaimClient":
-        """Configure the ReclaimClient with the given token and optional base URL."""
-        config = ReclaimClientConfig(token=token)
-        cls._config = config
-        if not cls._instance:
-            cls._instance = super().__new__(cls)
-        cls._instance._initialize()
-        return cls._instance
+        """
+        Create a new ReclaimClient instance with the given token and optional base URL.
+        Each call returns a new, independent client instance.
+        """
+        config = ReclaimClientConfig(
+            token=token,
+            base_url=base_url or "https://api.app.reclaim.ai"
+        )
+        return cls(config)
+    
+    @classmethod
+    def from_env(cls) -> "ReclaimClient":
+        """Create a client from environment variables."""
+        token = os.environ.get("RECLAIM_TOKEN")
+        if not token:
+            raise ValueError(
+                "Reclaim token is required. Set RECLAIM_TOKEN environment variable or use ReclaimClient.configure()."
+            )
+        return cls.configure(token=token)
 
     def request(self, method: str, endpoint: str, **kwargs: Any) -> Dict[str, Any]:
         if "json" in kwargs:

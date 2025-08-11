@@ -1,6 +1,9 @@
-# Juli Calendar Agent - MCP Server
+# Juli Calendar Agent - A2A Protocol
 
-An intelligent calendar and task management agent that seamlessly integrates Reclaim.ai (for smart task scheduling) and Nylas (for universal calendar access). Built as an MCP (Model Context Protocol) server for Juli AI, it uses OpenAI GPT-5 to understand natural language and handle complex scheduling operations.
+An intelligent calendar and task management agent that seamlessly integrates Reclaim.ai (for smart task scheduling) and Nylas (for universal calendar access). Built exclusively with the A2A (Agent-to-Agent) protocol for seamless integration with Juli Brain and other Juli agents, using OpenAI GPT-5 to understand natural language and handle complex scheduling operations.
+
+## 🚀 Pure A2A Implementation
+The Juli Calendar Agent uses the modern A2A protocol (JSON-RPC 2.0) for all agent-to-agent communication, providing stateless, secure, and efficient integration with the Juli ecosystem.
 
 ## Key Features
 
@@ -61,17 +64,40 @@ An intelligent calendar and task management agent that seamlessly integrates Rec
    python scripts/run_server.py --mode e2e --port 5002
    ```
 
-5. **Connect via Juli**
-   - The server will be available at `http://localhost:5002`
-   - Juli will handle credential injection for Reclaim.ai and Nylas
+5. **Connect via Juli Brain**
+   - The A2A agent will be available at `http://localhost:5002`
+   - Discovery endpoint: `http://localhost:5002/.well-known/a2a.json`
+   - RPC endpoint: `http://localhost:5002/a2a/rpc`
+   - Juli Brain will handle credential injection for Reclaim.ai and Nylas
+
+## A2A Protocol
+
+The agent communicates using the A2A (Agent-to-Agent) protocol:
+
+### Discovery
+- **Agent Card**: `/.well-known/a2a.json` - Describes agent capabilities
+- **Credentials**: `/.well-known/a2a-credentials.json` - Lists required credentials
+
+### JSON-RPC Methods
+- `agent.card` - Get agent information
+- `agent.handshake` - Initial connection
+- `tool.execute` - Execute a tool with arguments
+- `tool.approve` - Approve pending actions
+- `tool.list` - List available tools
+
+### Authentication
+- **Development**: Use `X-A2A-Dev-Secret` header
+- **Production**: OIDC bearer tokens from Juli Auth
+
+See [A2A Developer Guide](docs/A2A_DEVELOPER_GUIDE.md) for complete protocol documentation.
 
 ## Architecture
 
-This MCP server acts as an intelligent bridge between Juli AI and your productivity tools:
+This A2A agent acts as an intelligent bridge between Juli Brain and your productivity tools:
 
 ```
-User → Juli → MCP Server → GPT-5 Intent Router → Reclaim.ai (tasks)
-                                              → Nylas (calendar events)
+User → Juli Brain → A2A Agent → GPT-5 Intent Router → Reclaim.ai (tasks)
+                                                    → Nylas (calendar events)
 ```
 
 The system uses multiple specialized AI components:
