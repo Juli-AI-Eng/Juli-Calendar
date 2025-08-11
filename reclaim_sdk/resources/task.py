@@ -133,11 +133,13 @@ class Task(BaseResource):
 
     def mark_complete(self) -> None:
         response = self._client.post(f"/api/planner/done/task/{self.id}")
-        self.from_api_data(response["taskOrHabit"])
+        # Update current object's state instead of creating a new one
+        self.__dict__.update(self.from_api_data(response["taskOrHabit"]).__dict__)
 
     def mark_incomplete(self) -> None:
         response = self._client.post(f"/api/planner/unarchive/task/{self.id}")
-        self.from_api_data(response["taskOrHabit"])
+        # Update current object's state instead of creating a new one
+        self.__dict__.update(self.from_api_data(response["taskOrHabit"]).__dict__)
 
     @classmethod
     def prioritize_by_due(cls) -> None:
@@ -153,11 +155,11 @@ class Task(BaseResource):
         response = self._client.post(
             f"/api/planner/add-time/task/{self.id}", params={"minutes": rounded_minutes}
         )
-        self.from_api_data(response["taskOrHabit"])
+        self.__dict__.update(self.from_api_data(response["taskOrHabit"]).__dict__)
 
     def clear_exceptions(self) -> None:
         response = self._client.post(f"/api/planner/clear-exceptions/task/{self.id}")
-        self.from_api_data(response["taskOrHabit"])
+        self.__dict__.update(self.from_api_data(response["taskOrHabit"]).__dict__)
 
     def log_work(self, minutes: int, end: Optional[datetime] = None) -> None:
         params = {"minutes": minutes}
@@ -170,12 +172,12 @@ class Task(BaseResource):
         response = self._client.post(
             f"/api/planner/log-work/task/{self.id}", params=params
         )
-        self.from_api_data(response["taskOrHabit"])
+        self.__dict__.update(self.from_api_data(response["taskOrHabit"]).__dict__)
 
     def start(self) -> None:
         response = self._client.post(f"/api/planner/start/task/{self.id}")
-        self.from_api_data(response["taskOrHabit"])
+        self.__dict__.update(self.from_api_data(response["taskOrHabit"]).__dict__)
 
     def stop(self) -> None:
         response = self._client.post(f"/api/planner/stop/task/{self.id}")
-        self.from_api_data(response["taskOrHabit"])
+        self.__dict__.update(self.from_api_data(response["taskOrHabit"]).__dict__)

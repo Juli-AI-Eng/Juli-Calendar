@@ -246,8 +246,9 @@ class FindAndAnalyzeTool(BaseTool):
                             task_due = task_due.replace(tzinfo=now.tzinfo)
                         
                         if time_range == "today":
-                            # Check if task is due today (same date)
-                            if task_due.date() == now.date():
+                            # Convert UTC task due time to local timezone before comparing dates
+                            task_due_local = task_due.astimezone(now.tzinfo)
+                            if task_due_local.date() == now.date():
                                 filtered_tasks.append(task)
                         elif time_range == "this_week":
                             week_start = now - timedelta(days=now.weekday())

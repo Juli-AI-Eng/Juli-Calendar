@@ -60,6 +60,26 @@ coverage.xml
 # Django stuff:
 *.log
 local_settings.py
+
+# E2E Test Logs
+logs/*.log
+logs/**/*.log
+logs/timing/*.json
+logs/timing/*.txt
+tests/e2e/e2e_http.log
+
+# Local env/test artifacts
+.env.test
+.env.test.example
+.env
+
+# Local run/debug scripts outputs
+scripts/debug/**/tmp_*
+scripts/debug/**/.DS_Store
+
+# Keep log directories
+!logs/.gitkeep
+!logs/timing/.gitkeep
 db.sqlite3
 db.sqlite3-journal
 

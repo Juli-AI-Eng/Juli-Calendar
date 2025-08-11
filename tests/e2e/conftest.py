@@ -295,7 +295,7 @@ class TestDataTracker:
         self.nylas_events.clear()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def test_data_tracker():
     """Create a test data tracker for cleanup."""
     return TestDataTracker()

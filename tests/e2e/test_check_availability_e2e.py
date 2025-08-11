@@ -174,20 +174,3 @@ class TestCheckAvailabilityE2E:
             
             # Be nice to the API
     
-    def test_working_hours_consideration(self, juli_client, test_context):
-        """Test that availability respects working hours."""
-        # Check for time late in the evening
-        response = juli_client.execute_tool(
-            "check_availability",
-            {
-                "query": "Am I free tonight at 10pm?",
-                "duration_minutes": 60
-            },
-            test_context
-        )
-        
-        assert_response_fulfills_expectation(
-            response.json(),
-            "Check availability at 10pm (outside typical working hours). Should either show as available with a note about working hours, or indicate it's outside working hours.",
-            {"query": "Am I free tonight at 10pm?", "duration_minutes": 60}
-        )

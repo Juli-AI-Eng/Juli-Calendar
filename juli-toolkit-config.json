@@ -1,0 +1,219 @@
+{
+  "toolkit_type": "mcp_server",
+  "name": "Productivity Suite MCP",
+  "description": "AI-powered productivity suite combining Reclaim.ai task management with universal calendar access via Nylas. Natural language interface for managing tasks, scheduling meetings, checking availability, and optimizing your schedule.",
+  "version": "1.0.0",
+  "base_url": "http://localhost:5002",
+  "credential_config": {
+    "required": [
+      {
+        "key": "RECLAIM_API_KEY",
+        "display_name": "Reclaim.ai API Key",
+        "description": "Your Reclaim.ai API key from https://app.reclaim.ai/settings/developer",
+        "type": "string",
+        "validation_pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+        "sensitive": true
+      },
+      {
+        "key": "NYLAS_API_KEY",
+        "display_name": "Nylas API Key",
+        "description": "Your Nylas API key for calendar access (starts with 'nyk_')",
+        "type": "string",
+        "validation_pattern": "^nyk_[a-zA-Z0-9]+$",
+        "sensitive": true
+      },
+      {
+        "key": "NYLAS_GRANT_ID",
+        "display_name": "Nylas Grant ID",
+        "description": "The grant ID from your connected calendar account",
+        "type": "string",
+        "validation_pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+        "sensitive": true
+      }
+    ],
+    "injection": {
+      "method": "header",
+      "header_format": "X-User-Credential-{CREDENTIAL_KEY}"
+    }
+  },
+  "api_endpoints": {
+    "health": {
+      "path": "/health",
+      "method": "GET",
+      "description": "Check if the MCP server is running"
+    },
+    "list_tools": {
+      "path": "/mcp/tools",
+      "method": "GET",
+      "description": "List all available tools"
+    },
+    "execute_tool": {
+      "path": "/mcp/tools/{tool_name}",
+      "method": "POST",
+      "description": "Execute a specific tool"
+    },
+    "needs_setup": {
+      "path": "/mcp/needs-setup",
+      "method": "GET",
+      "description": "Check if the user needs to set up credentials"
+    }
+  },
+  "tools": [
+    {
+      "name": "manage_productivity",
+      "description": "Manage all aspects of your productivity: create and track tasks, schedule meetings and appointments, check availability, block time for work, and coordinate your entire schedule. Handles both one-time items and recurring commitments.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "What productivity action do you need? Examples: 'create a task to review Q4 budget by Friday', 'schedule a 1-hour meeting with Sarah tomorrow', 'am I free Tuesday afternoon?', 'block 2 hours for deep work this week', 'mark the presentation as complete'"
+          },
+          "context": {
+            "type": "string",
+            "description": "Any additional context about the request (optional)"
+          }
+        },
+        "required": ["query"]
+      },
+      "requires_auth": true,
+      "supports_preview": true
+    },
+    {
+      "name": "find_and_analyze",
+      "description": "Search, filter, and analyze your tasks, calendar events, and productivity patterns. Get insights into workload, progress, bottlenecks, and time allocation across all your commitments.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "What do you want to find or analyze? Examples: 'what do I need to do today?', 'show me overdue tasks', 'what meetings do I have this week?', 'analyze my workload trends', 'find all items about the Johnson project', 'how much time am I spending on meetings?'"
+          }
+        },
+        "required": ["query"]
+      },
+      "requires_auth": true,
+      "supports_preview": false
+    },
+    {
+      "name": "check_availability",
+      "description": "Check your availability and find free time slots. Ask if you're free at specific times, find available slots for meetings or focused work, check for conflicts, or get suggestions for the best times to schedule activities.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "What availability do you want to check? Examples: 'am I free tomorrow at 2pm?', 'find 2 hours for deep work this week', 'when can I schedule a 1-hour meeting?', 'do I have time this afternoon?'"
+          },
+          "duration_minutes": {
+            "type": "integer",
+            "description": "Duration needed in minutes (if not specified in query)"
+          }
+        },
+        "required": ["query"]
+      },
+      "requires_auth": true,
+      "supports_preview": false
+    },
+    {
+      "name": "optimize_schedule",
+      "description": "Intelligently optimize your schedule by finding the best times for tasks, rebalancing workload, resolving conflicts, and maximizing productivity based on your work patterns and priorities.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "request": {
+            "type": "string",
+            "description": "What optimization do you need? Examples: 'find 2 hours for deep work tomorrow', 'rebalance my personal tasks this week', 'identify scheduling conflicts', 'suggest better times for my solo work', 'create an action plan to optimize my schedule'"
+          },
+          "preferences": {
+            "type": "string",
+            "description": "Any constraints or preferences (optional). Examples: 'I work best in the mornings', 'protect my lunch break', 'prioritize urgent tasks', 'keep evenings free'"
+          }
+        },
+        "required": ["request"]
+      },
+      "requires_auth": true,
+      "supports_preview": true
+    }
+  ],
+  "setup_guide": {
+    "title": "Productivity Suite Setup Guide",
+    "estimated_time": "8 minutes",
+    "prerequisites": [
+      {
+        "name": "Reclaim.ai Account",
+        "description": "You need an active Reclaim.ai account",
+        "link": "https://app.reclaim.ai/signup"
+      },
+      {
+        "name": "Nylas Account",
+        "description": "You need a Nylas account (free tier available)",
+        "link": "https://dashboard-v3.nylas.com/register?utm_source=juli"
+      }
+    ],
+    "steps": [
+      {
+        "step_number": 1,
+        "title": "Get Your Reclaim.ai API Key",
+        "description": "Reclaim.ai manages your tasks and time blocking with AI-powered scheduling",
+        "instructions": [
+          "Sign in to your Reclaim.ai account",
+          "Go to Settings → Developer (or visit https://app.reclaim.ai/settings/developer)",
+          "Click 'Generate New API Key'",
+          "Copy the API key (it looks like a UUID)",
+          "Keep this key secret - it's like a password!"
+        ]
+      },
+      {
+        "step_number": 2,
+        "title": "Create Your Free Nylas Account",
+        "description": "Nylas provides universal calendar access (Google, Outlook, iCloud) - 5 free connections included!",
+        "instructions": [
+          "Visit https://dashboard-v3.nylas.com/register?utm_source=juli",
+          "Use the same email as your calendar account",
+          "No credit card required for free tier",
+          "Complete email verification if prompted"
+        ],
+        "important_note": "⚠️ Critical: Use the SAME calendar account that Reclaim.ai uses. This ensures perfect synchronization between tasks and events."
+      },
+      {
+        "step_number": 3,
+        "title": "Get Your Nylas API Key",
+        "description": "After signing in to Nylas, get your API key",
+        "instructions": [
+          "Look for 'API Keys' in the left sidebar",
+          "Your API key should be visible (starts with 'nyk_')",
+          "Copy the API key",
+          "Keep this key secret!"
+        ]
+      },
+      {
+        "step_number": 4,
+        "title": "Connect Your Calendar to Nylas",
+        "description": "Connect the SAME calendar account that Reclaim.ai uses",
+        "instructions": [
+          "Click 'Grants' in the Nylas sidebar",
+          "Click 'Add Test Grant' button (top right)",
+          "Choose your calendar provider (Google, Outlook, etc.)",
+          "⚠️ IMPORTANT: Use the SAME calendar as Reclaim.ai",
+          "Authorize Nylas to access your calendar",
+          "Copy the Grant ID that appears (UUID format)"
+        ]
+      }
+    ],
+    "common_issues": [
+      {
+        "issue": "Can't find Grant ID",
+        "solution": "It's in the table under the 'ID' column after you connect"
+      },
+      {
+        "issue": "Authorization failed",
+        "solution": "Make sure to allow all requested permissions"
+      },
+      {
+        "issue": "Wrong calendar account",
+        "solution": "Delete the grant and reconnect with the same account Reclaim.ai uses"
+      }
+    ]
+  }
+}

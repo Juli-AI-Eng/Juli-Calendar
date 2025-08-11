@@ -194,9 +194,9 @@ def create_app() -> Flask:
             tool = tools[tool_name]
             try:
                 # Execute tool (let it handle its own validation)
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                result = loop.run_until_complete(
+                # Use asyncio.run() which properly manages the event loop
+                # This avoids the hanging issues with new_event_loop() in threaded mode
+                result = asyncio.run(
                     tool.execute(data, credentials)
                 )
                 

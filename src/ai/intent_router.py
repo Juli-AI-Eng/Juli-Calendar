@@ -50,16 +50,20 @@ Current date: {user_context.get('current_date', 'Unknown')}
                 "type": "function",
                 "function": {
                     "name": "analyze_intent",
-                    "description": "Return ONLY provider and intent_type for routing (tasks→reclaim, events→nylas).",
+                    "description": "Classify request and detect if it involves other people.",
                     "strict": True,
                     "parameters": {
                         "type": "object",
                         "additionalProperties": False,
                         "properties": {
                             "provider": {"type": "string", "enum": ["reclaim", "nylas"]},
-                            "intent_type": {"type": "string", "enum": ["task", "calendar"]}
+                            "intent_type": {"type": "string", "enum": ["task", "calendar"]},
+                            "involves_others": {
+                                "type": "boolean",
+                                "description": "True if the event/task involves other people (team standup, meeting with someone, group activity). False for solo activities."
+                            }
                         },
-                        "required": ["provider", "intent_type"]
+                        "required": ["provider", "intent_type", "involves_others"]
                     }
                 }
             }
@@ -68,15 +72,26 @@ Current date: {user_context.get('current_date', 'Unknown')}
             messages = [
                 {
                     "role": "system", 
-                    "content": """You are a request classifier.
+                    "content": """You are a request classifier for a productivity system.
 
-RULE 1: If the query contains the word "task" → Return provider="reclaim", intent_type="task"
+CLASSIFICATION RULES:
+RULE 1: If the query contains the word "task" → Return provider="reclaim", intent_type="task", involves_others=false (unless explicitly collaborative)
 RULE 2: Otherwise, if it mentions meetings/appointments/calendar OR has a specific time (like "at 3pm", "tomorrow morning", "Monday at 10am") → Return provider="nylas", intent_type="calendar"
-RULE 3: Otherwise → Return provider="reclaim", intent_type="task"
+RULE 3: Otherwise → Return provider="reclaim", intent_type="task", involves_others=false
 
 CRITICAL: The word "task" ALWAYS means Reclaim. No exceptions.
 
-IMPORTANT: If the query has a SPECIFIC TIME (not just a due date), it should be a calendar event:
+PARTICIPANT DETECTION for involves_others field:
+Set involves_others=true if the request clearly involves multiple people:
+- Event types that imply groups: team standup, team meeting, all-hands, staff meeting
+- Named participants: "with John", "and Sarah", "the marketing team"
+- Collaborative terms: interview, review with, sync with, 1:1, one-on-one, demo, workshop
+
+Set involves_others=false for solo activities:
+- Personal appointments, deep work, focus time, study time
+- Individual tasks without mention of others
+
+IMPORTANT TIME RULES:
 - "at 3pm", "tomorrow at 10am", "Monday morning" = specific time → calendar event
 - "by Friday", "end of week", "next month" = due date → task
 - "tomorrow morning" = specific time (defaults to 9am) → calendar event

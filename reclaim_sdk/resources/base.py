@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict, PrivateAttr
 from datetime import datetime
 from typing import ClassVar, Dict, List, Type, TypeVar
 from reclaim_sdk.client import ReclaimClient
@@ -7,12 +7,14 @@ T = TypeVar("T", bound="BaseResource")
 
 
 class BaseResource(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    
     id: int | None = Field(None, description="Unique identifier of the resource")
     created: datetime | None = Field(None, description="Creation timestamp")
     updated: datetime | None = Field(None, description="Last update timestamp")
 
     ENDPOINT: ClassVar[str] = ""
-    _client: ReclaimClient
+    _client: ReclaimClient = PrivateAttr(default=None)
 
     def __init__(self, **data):
         super().__init__(**data)
@@ -33,7 +35,9 @@ class BaseResource(BaseModel):
         if client is None:
             client = ReclaimClient()
         data = client.get(f"{cls.ENDPOINT}/{id}")
-        return cls.from_api_data(data)
+        instance = cls.from_api_data(data)
+        instance._client = client
+        return instance
 
     def refresh(self) -> None:
         if not self.id:
@@ -49,7 +53,10 @@ class BaseResource(BaseModel):
             response = client.patch(f"{self.ENDPOINT}/{self.id}", json=data)
         else:
             response = client.post(self.ENDPOINT, json=data)
-        self.__dict__.update(self.from_api_data(response).__dict__)
+        # Create a new instance with the response data and update current object
+        new_instance = self.from_api_data(response)
+        new_instance._client = client
+        self.__dict__.update(new_instance.__dict__)
 
     def delete(self) -> None:
         if not self.id:
@@ -62,4 +69,9 @@ class BaseResource(BaseModel):
         if client is None:
             client = ReclaimClient()
         data = client.get(cls.ENDPOINT, params=params)
-        return [cls.from_api_data(item) for item in data]
+        instances = []
+        for item in data:
+            instance = cls.from_api_data(item)
+            instance._client = client
+            instances.append(instance)
+        return instances

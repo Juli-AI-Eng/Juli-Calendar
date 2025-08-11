@@ -94,6 +94,9 @@ def main():
     if args.mode == "e2e":
         host = "127.0.0.1"
         port = args.port or 5002
+        # IMPORTANT: Set debug to False for E2E mode to prevent Flask reloader issues.
+        # The Flask reloader can cause race conditions and hanging tests during E2E runs.
+        # For stable E2E testing, we disable debug mode to avoid unexpected restarts.
         debug = False
     else:
         host = os.getenv("HOST", "0.0.0.0")

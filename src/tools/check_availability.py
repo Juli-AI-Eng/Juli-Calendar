@@ -6,6 +6,7 @@ import logging
 
 from src.tools.base import BaseTool
 from src.ai.availability_checker import AvailabilityChecker
+from src.ai.calendar_intelligence import CalendarIntelligence
 from src.ai.date_parser import DateParser
 from src.auth.credential_manager import CredentialManager
 from reclaim_sdk.client import ReclaimClient
@@ -176,6 +177,21 @@ class CheckAvailabilityTool(BaseTool):
         
         available = len(conflicts) == 0
         
+        # Generate the response message
+        message = (
+            f"You are {'available' if available else 'not available'} "
+            f"at {start_time.strftime('%I:%M %p on %A, %B %d')}"
+        )
+        
+        # Add a note if the time is outside working hours
+        logger.info(f"[CHECK_AVAILABILITY] Checking if {start_time} is in working hours...")
+        is_working_hours = CalendarIntelligence.is_working_hours(start_time)
+        logger.info(f"[CHECK_AVAILABILITY] is_working_hours={is_working_hours}")
+        
+        if not is_working_hours:
+            message += " (Note: This is outside of typical working hours, 9am-6pm on weekdays)."
+            logger.info(f"[CHECK_AVAILABILITY] Added working hours note to message")
+        
         return {
             "success": True,
             "available": available,
@@ -185,10 +201,7 @@ class CheckAvailabilityTool(BaseTool):
                 "end": end_time.isoformat(),
                 "duration_minutes": request["duration_minutes"]
             },
-            "message": (
-                f"You are {'available' if available else 'not available'} "
-                f"at {start_time.strftime('%I:%M %p on %A, %B %d')}"
-            )
+            "message": message
         }
     
     async def _find_time_slots(
@@ -501,6 +514,32 @@ class CheckAvailabilityTool(BaseTool):
             
             # Find gaps in busy times for this day
             day_busy = [bt for bt in busy_times if bt["start"].date() == current_date]
+            
+            # Apply time-of-day preferences to working hours
+            if preferences.get("prefer_morning"):
+                # Morning: 9 AM to 12 PM
+                day_start = max(day_start, user_context["now"].tzinfo.localize(
+                    datetime.combine(current_date, datetime.min.time().replace(hour=9))
+                ))
+                day_end = min(day_end, user_context["now"].tzinfo.localize(
+                    datetime.combine(current_date, datetime.min.time().replace(hour=12))
+                ))
+            elif preferences.get("prefer_afternoon"):
+                # Afternoon: 12 PM to 5 PM
+                day_start = max(day_start, user_context["now"].tzinfo.localize(
+                    datetime.combine(current_date, datetime.min.time().replace(hour=12))
+                ))
+                day_end = min(day_end, user_context["now"].tzinfo.localize(
+                    datetime.combine(current_date, datetime.min.time().replace(hour=17))
+                ))
+            elif preferences.get("prefer_evening"):
+                # Evening: 5 PM to 8 PM
+                day_start = max(day_start, user_context["now"].tzinfo.localize(
+                    datetime.combine(current_date, datetime.min.time().replace(hour=17))
+                ))
+                day_end = min(day_end, user_context["now"].tzinfo.localize(
+                    datetime.combine(current_date, datetime.min.time().replace(hour=20))
+                ))
             
             # Check slots throughout the day
             slot_start = day_start

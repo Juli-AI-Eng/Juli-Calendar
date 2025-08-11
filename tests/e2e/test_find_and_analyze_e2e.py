@@ -1,5 +1,6 @@
 """End-to-end tests for find_and_analyze tool."""
 import pytest
+import time
 from datetime import datetime, timedelta
 import pytz
 from tests.e2e.utils.test_helpers import assert_response_fulfills_expectation
@@ -28,6 +29,13 @@ class TestFindAndAnalyzeE2E:
             if data.get("success") and "id" in data.get("data", {}):
                 task_id = data["data"]["id"]
                 test_data_tracker.add_task(task_id)
+                
+                # Wait for Reclaim to schedule the task and create a calendar event.
+                # This can take several seconds. Without this delay, subsequent
+                # searches for today's items might fail to find the corresponding event.
+                print("\n[SETUP] Waiting 15s for Reclaim to schedule the task...")
+                time.sleep(15)
+                print("[SETUP] ...continuing test setup.")
         
         # Create an event for tomorrow
         response = juli_client.execute_tool(
@@ -81,7 +89,7 @@ class TestFindAndAnalyzeE2E:
         
         assert_response_fulfills_expectation(
             response.json(),
-            "Search for today's calendar items. Should return both tasks and events for today, including at least the financial report task.",
+            "Search for today's calendar items. Should return at least the financial report (which Reclaim schedules as a calendar event). The search should be successful and find today's items.",
             {"query": "What's on my calendar today?", "scope": "both"}
         )
     

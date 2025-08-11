@@ -128,7 +128,14 @@ DEFAULT TIMES:
 PARTICIPANT EXTRACTION:
 - "with John and Sarah" → participants: ["John", "Sarah"]
 - "meeting with the team" → participants: ["team"]
+- "team standup" → participants: ["team"] (standup implies team participation)
+- "team meeting" → participants: ["team"]
+- "all-hands" → participants: ["all-hands"]
+- "1:1 with Bob" → participants: ["Bob"]
+- "staff meeting" → participants: ["staff"]
+- "interview" → participants: ["interviewer"] (implies other person)
 - Extract all names mentioned as participants
+- If the event type inherently involves multiple people (standup, team meeting, all-hands, etc.), include that as a participant
 
 For UPDATE/CANCEL operations:
 - Set event_reference to identify which event. This should be the core title of the event, not the full phrase.

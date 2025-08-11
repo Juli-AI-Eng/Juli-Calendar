@@ -65,19 +65,48 @@ class AITestGrader:
                 ],
                 # Some GPT-5 Responses models do not accept 'temperature'. Omit unless required.
                 max_output_tokens=1000,
+                # Force text output and minimize reasoning to avoid reasoning-only responses
+                reasoning={"effort": "low"},  # Minimize reasoning to force actual text output
+                text={"format": {"type": "text"}, "verbosity": "high"}  # Force verbose text output
             )
 
-            # Prefer output_text; fallback to concatenating output text segments
-            grading_text = getattr(resp, "output_text", None)
-            if not grading_text:
-                data = resp.model_dump() if hasattr(resp, "model_dump") else resp
+            # Extract text from GPT-5 response
+            import logging
+            logger = logging.getLogger(__name__)
+            
+            # Try direct output_text attribute first
+            grading_text = getattr(resp, "output_text", "") or ""
+            
+            # If empty, parse from output items
+            if not grading_text and hasattr(resp, "output"):
                 parts = []
-                for item in data.get("output", []):
-                    if item.get("type") == "message":
-                        for c in item.get("content", []):
-                            if c.get("type") == "output_text":
-                                parts.append(c.get("text", ""))
-                grading_text = "\n".join(parts)
+                for item in resp.output or []:
+                    # Handle message items (expected format)
+                    if hasattr(item, "type") and item.type == "message":
+                        if hasattr(item, "content"):
+                            for c in item.content or []:
+                                if hasattr(c, "type") and c.type in ("output_text", "text"):
+                                    if hasattr(c, "text") and c.text:
+                                        parts.append(c.text)
+                                elif hasattr(c, "text"):
+                                    parts.append(c.text)
+                    # Handle reasoning items if they slip through (shouldn't with effort="low")
+                    elif hasattr(item, "type") and item.type == "reasoning":
+                        logger.warning("[AI_GRADER] Got reasoning item despite effort='low' setting")
+                
+                grading_text = "\n".join(p for p in parts if p)
+            
+            # Log the result
+            if grading_text:
+                logger.debug(f"[AI_GRADER] Extracted text (length={len(grading_text)}): {grading_text[:200]}...")
+            else:
+                logger.error(f"[AI_GRADER] Failed to extract text from response. Response type: {type(resp)}, has output: {hasattr(resp, 'output')}")
+                # Log more details for debugging
+                if hasattr(resp, "model_dump"):
+                    import json
+                    dump = resp.model_dump()
+                    logger.error(f"[AI_GRADER] Response structure: {json.dumps(dump, default=str)[:500]}")
+            
             return self._parse_grading_response(grading_text)
             
         except Exception as e:
@@ -135,6 +164,17 @@ Be thorough in your reasoning and explain what you found in the response that su
     
     def _parse_grading_response(self, grading_text: str) -> GradingResult:
         """Parse the AI's grading response."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        if not grading_text or not grading_text.strip():
+            logger.warning("[AI_GRADER] Empty grading text received")
+            return GradingResult(
+                passed=False,
+                reasoning="AI grader returned empty response - unable to determine verdict",
+                confidence=0.0
+            )
+        
         lines = grading_text.strip().split('\n')
         
         verdict = None
@@ -153,7 +193,9 @@ Be thorough in your reasoning and explain what you found in the response that su
                     confidence = 0.0
             elif line.startswith("REASONING:"):
                 in_reasoning = True
-                reasoning_lines.append(line.replace("REASONING:", "").strip())
+                reasoning_text = line.replace("REASONING:", "").strip()
+                if reasoning_text:
+                    reasoning_lines.append(reasoning_text)
             elif in_reasoning and line:
                 reasoning_lines.append(line)
         
@@ -169,20 +211,39 @@ Be thorough in your reasoning and explain what you found in the response that su
                 if m2:
                     verdict = m2.group(1).upper()
                 else:
-                    # Heuristic: if contains PASS but not FAIL, mark PASS
-                    contains_pass = " pass" in text_lower or "pass." in text_lower or "✅ pass" in text_lower
-                    contains_fail = " fail" in text_lower or "fail." in text_lower or "❌ fail" in text_lower
-                    if contains_pass and not contains_fail:
+                    # Look for verdict patterns anywhere in the text
+                    if re.search(r'\bPASS\b', grading_text, re.IGNORECASE):
                         verdict = "PASS"
-                    elif contains_fail and not contains_pass:
+                        confidence = 0.5  # Lower confidence for heuristic match
+                    elif re.search(r'\bFAIL\b', grading_text, re.IGNORECASE):
                         verdict = "FAIL"
+                        confidence = 0.5  # Lower confidence for heuristic match
                     else:
                         verdict = "FAIL"  # conservative default
+                        confidence = 0.0
         
-        reasoning = "\n".join(reasoning_lines) or grading_text
+        # Build reasoning from available text
+        reasoning = "\n".join(reasoning_lines) if reasoning_lines else ""
+        
+        # If no structured reasoning found, use the entire response as reasoning
+        if not reasoning.strip():
+            # Remove the verdict and confidence lines if found
+            cleaned_lines = []
+            for line in grading_text.split('\n'):
+                line_lower = line.lower().strip()
+                if not (line_lower.startswith("verdict:") or 
+                       line_lower.startswith("confidence:") or
+                       line_lower.startswith("reasoning:") and ":" in line):
+                    cleaned_lines.append(line.strip())
+            reasoning = "\n".join(cleaned_lines).strip()
+            
+            if not reasoning:
+                reasoning = "Unable to parse AI grading reasoning from response: " + grading_text[:200]
+        
+        logger.debug(f"[AI_GRADER] Parsed verdict={verdict}, confidence={confidence}, reasoning_length={len(reasoning)}")
         
         return GradingResult(
-            passed=verdict.upper() == "PASS",
+            passed=verdict.upper() == "PASS" if verdict else False,
             reasoning=reasoning,
             confidence=confidence
         )

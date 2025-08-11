@@ -103,6 +103,12 @@ Extract availability check parameters from the user's query. Consider:
 - How long should the meeting be (default to {default_duration} minutes if not specified)
 - For finding slots: what time range (today, this week, etc.) and preferences (morning, afternoon)
 
+IMPORTANT for time of day:
+- "this afternoon" or "today afternoon" -> type: "find_slots", time_range: "today", preferences: {{"prefer_afternoon": true}}
+- "this morning" or "today morning" -> type: "find_slots", time_range: "today", preferences: {{"prefer_morning": true}}
+- "this evening" or "tonight" -> type: "find_slots", time_range: "today", preferences: {{"prefer_evening": true}}
+- NEVER return morning slots when user asks for afternoon/evening times
+
 IMPORTANT for date parsing:
 - "next Tuesday" means the Tuesday of NEXT week, not this week
 - "this Tuesday" means the Tuesday of the current week

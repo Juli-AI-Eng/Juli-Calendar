@@ -138,6 +138,44 @@ class TestApprovalFlowE2E:
     
     def test_bulk_operation_approval_flow(self, juli_client, test_context, test_data_tracker):
         """Test that bulk operations require approval."""
+        # First, clean up any existing bulk test tasks from previous runs
+        # This ensures we start with a clean slate
+        cleanup_response = juli_client.execute_tool(
+            "find_and_analyze",
+            {
+                "query": "Show me all tasks with 'Bulk test task' in the title",
+                "context": "Finding existing test tasks for cleanup"
+            },
+            test_context
+        )
+        
+        if cleanup_response.status_code == 200:
+            cleanup_data = cleanup_response.json()
+            if cleanup_data.get("success") and cleanup_data.get("data"):
+                # Clean up any existing bulk test tasks
+                for task in cleanup_data["data"]:
+                    if isinstance(task, dict) and "Bulk test task" in task.get("title", ""):
+                        delete_response = juli_client.execute_tool(
+                            "manage_productivity",
+                            {
+                                "query": f"Delete task '{task['title']}'",
+                                "context": "Cleaning up test data before test"
+                            },
+                            test_context
+                        )
+                        # Handle approval if needed for deletion
+                        if delete_response.status_code == 200:
+                            delete_data = delete_response.json()
+                            if delete_data.get("needs_approval") and delete_data.get("action_data"):
+                                juli_client.execute_tool(
+                                    "manage_productivity",
+                                    {
+                                        "approved": True,
+                                        "action_data": delete_data["action_data"]
+                                    },
+                                    test_context
+                                )
+        
         # Create multiple tasks first
         task_ids = []
         for i in range(3):
@@ -150,12 +188,28 @@ class TestApprovalFlowE2E:
                 test_context
             )
             
+            create_data = create_response.json()
+            
+            # Handle the case where a duplicate is detected (shouldn't happen after cleanup)
+            if create_data.get("needs_approval") and create_data.get("action_type") == "task_create_duplicate":
+                # If we get a duplicate detection, approve it to create anyway
+                # This handles edge cases where cleanup might have failed
+                approved_response = juli_client.execute_tool(
+                    "manage_productivity",
+                    {
+                        "approved": True,
+                        "action_data": create_data["action_data"]
+                    },
+                    test_context
+                )
+                create_data = approved_response.json()
+            
             assert_response_fulfills_expectation(
-                create_response.json(),
+                create_data,
                 f"Create task number {i+1} for bulk operation testing",
                 {"query": f"Bulk test task {i+1}", "context": "For bulk operation testing"}
             )
-            create_data = create_response.json()
+            
             if create_data.get("success") and create_data.get("data", {}).get("id"):
                 task_ids.append(create_data["data"]["id"])
                 test_data_tracker.add_task(create_data["data"]["id"])

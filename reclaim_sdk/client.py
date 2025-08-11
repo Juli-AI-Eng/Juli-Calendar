@@ -38,9 +38,13 @@ class ReclaimClient:
                 )
             self._config = ReclaimClientConfig(token=token)
 
+        # Add a default timeout to prevent hanging requests
+        default_timeout = float(os.getenv("RECLAIM_API_TIMEOUT_SECONDS", "60.0"))
+        
         self.session = httpx.Client(
             base_url=self._config.base_url,
             headers={"Authorization": f"Bearer {self._config.token}"},
+            timeout=default_timeout
         )
 
     @classmethod

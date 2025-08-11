@@ -1,6 +1,8 @@
 """Common test helpers for E2E tests."""
 import pytest
 import inspect
+import uuid
+from datetime import datetime
 from typing import Dict, Any, Optional
 from .ai_grader import ai_grade_response
 

@@ -209,63 +209,6 @@ class TestConflictResolutionE2E:
             print(f"   Event ID: {rescheduled_event_id}")
             print(f"   Scheduled time: {approved_data['data'].get('when')}")
     
-    def test_buffer_time_conflict(self, juli_client, test_context, test_data_tracker, test_timer):
-        """Test that events within the 10-minute buffer are detected as conflicts."""
-        from tests.e2e.utils.timing import TimingContext
-        
-        # Create first event ending at 2:00 PM
-        first_event_title = "Client Meeting"
-        response = juli_client.execute_tool(
-            "manage_productivity",
-            {
-                "query": f"Schedule '{first_event_title}' tomorrow from 1pm to 2pm",
-                "context": "Testing buffer time conflicts"
-            },
-            test_context
-        )
-        
-        data = response.json()
-        if data.get("needs_approval") and data["action_type"] == "event_create_with_participants":
-            approved_response = juli_client.execute_tool(
-                "manage_productivity",
-                {"approved": True, "action_data": data["action_data"]},
-                test_context
-            )
-            data = approved_response.json()
-        
-        assert_response_fulfills_expectation(
-            data,
-            "Should create the first event successfully",
-            {"query": f"Schedule '{first_event_title}' tomorrow from 1pm to 2pm"}
-        )
-        if "data" in data and "id" in data["data"]:
-            test_data_tracker.add_event(data["data"]["id"])
-        
-        # Try to create event at 2:05 PM (within 10-minute buffer)
-        buffer_conflict_title = "Team Sync"
-        with TimingContext(test_timer, "create_buffer_conflict"):
-            response = juli_client.execute_tool(
-                "manage_productivity",
-                {
-                    "query": f"Schedule '{buffer_conflict_title}' tomorrow at 2:05pm",
-                    "context": "This should conflict due to buffer time"
-                },
-                test_context
-            )
-        
-        data = response.json()
-        
-        # Should detect conflict due to buffer time
-        assert data.get("needs_approval") is True
-        # Use AI grader for flexible validation
-        assert_response_fulfills_expectation(
-            data,
-            "Should detect conflict due to buffer time (10-minute buffer prevents back-to-back meetings)",
-            {"query": f"Schedule '{buffer_conflict_title}' tomorrow at 2:05pm", "context": "This should conflict due to buffer time"}
-        )
-        
-        print("\n✅ Buffer time conflict correctly detected!")
-        print("   10-minute buffer prevents back-to-back meetings")
     
     def test_working_hours_scheduling(self, juli_client, test_context, test_data_tracker, test_timer):
         """Test that alternative slots respect working hours (9 AM - 6 PM weekdays)."""

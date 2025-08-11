@@ -176,6 +176,45 @@ class ManageProductivityTool(BaseTool):
                     user_context,
                     action_type="event_create_duplicate"
                 )
+            elif action_type == "task_complete":
+                # Approved task complete operation - check if it's actually a bulk operation
+                intent_result = action_data.get("intent", {})
+                validated_data = action_data.get("params", {})
+                query = validated_data.get("query", "")
+                
+                # Check if this should have been a bulk operation
+                bulk_keywords = ["all tasks", "all of them", "all my tasks", "every task", 
+                               "multiple tasks", "many tasks", "everything", "all the"]
+                if any(keyword in query.lower() for keyword in bulk_keywords):
+                    logger.info(f"[REDIRECT] Redirecting task_complete to bulk_complete for: '{query}'")
+                    # Redirect to bulk handler
+                    action_type = "bulk_complete"
+                # Continue to bulk_complete handler
+            
+            if action_type == "bulk_complete":
+                # Approved bulk complete operation
+                logger.info(f"[DEBUG] Processing approved bulk complete operation")
+                intent_result = action_data.get("intent", {})
+                task_details = intent_result.get("task_details", {})
+                validated_data = action_data.get("params", {})
+                
+                # Ensure user context fields have defaults
+                validated_data.setdefault("user_timezone", data.get("user_timezone", "UTC"))
+                validated_data.setdefault("current_date", data.get("current_date", datetime.now().strftime("%Y-%m-%d")))
+                validated_data.setdefault("current_time", data.get("current_time", datetime.now().strftime("%H:%M:%S")))
+                user_context = self._build_user_context(validated_data)
+                
+                # Create Reclaim client and execute bulk operation
+                # Use the original query to maintain bulk context
+                client = ReclaimClient.configure(token=credentials["reclaim_api_key"])
+                
+                # For bulk operations, use the original query as the task reference
+                # This will trigger the bulk logic in _complete_reclaim_task
+                original_query = validated_data.get("query", "")
+                task_details["title"] = original_query
+                logger.info(f"[BULK_APPROVED] Using original query for bulk operation: '{original_query}'")
+                
+                return await self._complete_reclaim_task(client, task_details, user_context)
             elif action_type == "event_create_conflict_reschedule" and action_data.get("event_details"):
                 # Approved conflict reschedule - create event at suggested alternative time
                 logger.info(f"[DEBUG] Processing approved conflict reschedule")
@@ -292,6 +331,8 @@ class ManageProductivityTool(BaseTool):
             intent_result["operation"] = task_parsed.get("intent", "create")
             intent_result["task_reference"] = task_parsed.get("task_reference")
             
+            logger.info(f"[TASK_AI_RESULT] operation from task AI: '{task_parsed.get('intent')}', task_reference: '{task_parsed.get('task_reference')}'")
+            
             # For Reclaim tasks, check approval for bulk operations
             operation = intent_result.get('operation', 'create')
             operation_type = f"{intent_result['intent_type']}_{operation}"
@@ -299,10 +340,16 @@ class ManageProductivityTool(BaseTool):
             # Detect bulk operations from query
             query_lower = data["query"].lower()
             is_bulk = False
+            logger.info(f"[BULK_CHECK_START] operation='{operation}', query='{data['query']}'")
             if operation in ["complete", "cancel", "delete", "update"]:
                 bulk_keywords = ["all tasks", "all of them", "all my tasks", "every task", 
                                "multiple tasks", "many tasks", "everything", "all the"]
                 is_bulk = any(keyword in query_lower for keyword in bulk_keywords)
+                # Additional debug logging
+                logger.info(f"[BULK_DEBUG] Checking keywords against query: '{query_lower}'")
+                for keyword in bulk_keywords:
+                    if keyword in query_lower:
+                        logger.info(f"[BULK_DEBUG] Matched keyword: '{keyword}'")
             
             approval_context = {
                 "has_participants": False,  # Tasks don't have participants
@@ -314,13 +361,30 @@ class ManageProductivityTool(BaseTool):
             logger.info(f"[DEBUG] Approval context for task: {approval_context}")
             logger.info(f"[DEBUG] operation_type for task approval: {operation_type}")
             
-            if requires_approval(operation_type, approval_context):
+            approval_required = requires_approval(operation_type, approval_context)
+            logger.info(f"[APPROVAL_CHECK] requires_approval returned: {approval_required}")
+            
+            if approval_required:
                 # Build warning message based on operation
                 warning = self._get_operation_warning(operation_type, intent_result)
                 
+                # Use bulk-specific action type if it's a bulk operation
+                # Additional check to ensure bulk operations get bulk_ prefix
+                bulk_keywords = ["all tasks", "all of them", "all my tasks", "every task", 
+                               "multiple tasks", "many tasks", "everything", "all the"]
+                query_lower = data["query"].lower()
+                is_definitely_bulk = any(keyword in query_lower for keyword in bulk_keywords)
+                
+                if is_definitely_bulk and operation in ["complete", "cancel", "delete", "update"]:
+                    final_action_type = f"bulk_{operation}"
+                    logger.info(f"[FORCED_BULK] Detected bulk operation, setting action_type to: {final_action_type}")
+                else:
+                    final_action_type = f"bulk_{operation}" if is_bulk else operation_type
+                    logger.info(f"[APPROVAL_DEBUG] is_bulk={is_bulk}, operation={operation}, final_action_type={final_action_type}")
+                
                 return {
                     "needs_approval": True,
-                    "action_type": operation_type,
+                    "action_type": final_action_type,
                     "action_data": {
                         "tool": "manage_productivity",
                         "params": validated_data,
@@ -384,6 +448,7 @@ class ManageProductivityTool(BaseTool):
             elif operation == "update":
                 return await self._update_reclaim_task(client, task_details, user_context)
             elif operation == "complete":
+                # Complete operation - bulk handling is in _complete_reclaim_task
                 return await self._complete_reclaim_task(client, task_details, user_context)
             elif operation == "cancel" or operation == "delete":
                 return await self._cancel_reclaim_task(client, task_details, user_context)
@@ -933,10 +998,10 @@ class ManageProductivityTool(BaseTool):
                         if task:
                             matches.append({"id": task.id, "title": task.title})
                     
+                    matches_str = ', '.join([f"{m['title']} (ID: {m['id']})" for m in matches])
                     return self._error_response(
                         "reclaim", 
-                        f"Multiple tasks match '{task_reference}'. Which one did you mean?",
-                        {"matches": matches, "suggestion": "Please be more specific"}
+                        f"Multiple tasks match '{task_reference}'. Which one did you mean? Matches: {matches_str}"
                     )
                 
                 # Single match found
@@ -988,6 +1053,93 @@ class ManageProductivityTool(BaseTool):
                 task_reference = task_details.get("task_reference", "")
                 logger.info(f"[TEMP] Looking for task with reference: '{task_reference}'")
                 
+                # Check if this is a bulk operation (looking for multiple tasks)
+                bulk_indicators = ['all tasks', 'all ', 'multiple', 'every', 'each']
+                is_bulk = any(indicator in task_reference.lower() for indicator in bulk_indicators)
+                
+                if is_bulk:
+                    # Handle bulk task completion - THIS REQUIRES APPROVAL!
+                    logger.info(f"[BULK] Detected bulk operation for: '{task_reference}'")
+                    
+                    # This is an APPROVED request being executed
+                    # The original approval check already happened, so we can proceed
+                    # Check if we're in an approved context (i.e., this was called from an approved action)
+                    
+                    # Filter to only active tasks
+                    active_tasks = [t for t in tasks if t.status in [TaskStatus.NEW, TaskStatus.SCHEDULED, TaskStatus.IN_PROGRESS]]
+                    
+                    # Find matching tasks based on the search term
+                    # Extract the search term from phrases like "all tasks with 'X' in the title"
+                    import re
+                    search_terms = []
+                    
+                    # Try to extract quoted terms
+                    quoted_matches = re.findall(r"'([^']+)'", task_reference)
+                    if quoted_matches:
+                        search_terms.extend(quoted_matches)
+                    
+                    # Also try common patterns
+                    if "with" in task_reference.lower():
+                        # Pattern: "all tasks with X in the title"
+                        parts = task_reference.lower().split("with")
+                        if len(parts) > 1:
+                            term = parts[1].replace("in the title", "").replace("in title", "").strip()
+                            term = term.strip("'\"")
+                            if term and term not in search_terms:
+                                search_terms.append(term)
+                    
+                    if not search_terms:
+                        # Fallback: use the whole reference
+                        search_terms = [task_reference]
+                    
+                    logger.info(f"[BULK] Search terms: {search_terms}")
+                    
+                    # Find tasks that match any of the search terms
+                    matching_tasks = []
+                    for task in active_tasks:
+                        task_title_lower = task.title.lower()
+                        for term in search_terms:
+                            if term.lower() in task_title_lower:
+                                matching_tasks.append(task)
+                                break
+                    
+                    logger.info(f"[BULK] Found {len(matching_tasks)} matching tasks")
+                    
+                    if not matching_tasks:
+                        return self._error_response("reclaim", f"No tasks found matching '{task_reference}'")
+                    
+                    # Complete all matching tasks
+                    completed_tasks = []
+                    failed_tasks = []
+                    
+                    for task in matching_tasks:
+                        try:
+                            task._client = client
+                            task.mark_complete()
+                            task.refresh()
+                            completed_tasks.append({"id": task.id, "title": task.title})
+                            logger.info(f"[BULK] Completed task: {task.title} (ID: {task.id})")
+                        except Exception as e:
+                            failed_tasks.append({"id": task.id, "title": task.title, "error": str(e)})
+                            logger.error(f"[BULK] Failed to complete task {task.title}: {e}")
+                    
+                    # Return bulk operation result
+                    if completed_tasks:
+                        message = f"Completed {len(completed_tasks)} task(s): {', '.join([t['title'] for t in completed_tasks])}"
+                        if failed_tasks:
+                            message += f". Failed to complete {len(failed_tasks)} task(s): {', '.join([t['title'] for t in failed_tasks])}"
+                        
+                        return self._success_response(
+                            provider="reclaim",
+                            action="bulk_completed",
+                            data={"completed": completed_tasks, "failed": failed_tasks},
+                            message=message
+                        )
+                    else:
+                        return self._error_response("reclaim", f"Failed to complete any tasks. Errors: {failed_tasks}")
+                    
+                # Not a bulk operation - continue with single task logic
+                
                 # Filter to only active tasks and limit to recent 100 to prevent timeout
                 active_tasks = [t for t in tasks if t.status in [TaskStatus.NEW, TaskStatus.SCHEDULED, TaskStatus.IN_PROGRESS]][:100]
                 
@@ -1013,10 +1165,10 @@ class ManageProductivityTool(BaseTool):
                         if task:
                             matches.append({"id": task.id, "title": task.title})
                     
+                    matches_str = ', '.join([f"{m['title']} (ID: {m['id']})" for m in matches])
                     return self._error_response(
                         "reclaim", 
-                        f"Multiple tasks match '{task_reference}'. Which one did you mean?",
-                        {"matches": matches, "suggestion": "Please be more specific"}
+                        f"Multiple tasks match '{task_reference}'. Which one did you mean? Matches: {matches_str}"
                     )
                 
                 # Single match found
@@ -1084,10 +1236,10 @@ class ManageProductivityTool(BaseTool):
                         if task:
                             matches.append({"id": task.id, "title": task.title})
                     
+                    matches_str = ', '.join([f"{m['title']} (ID: {m['id']})" for m in matches])
                     return self._error_response(
                         "reclaim", 
-                        f"Multiple tasks match '{task_reference}'. Which one did you mean?",
-                        {"matches": matches, "suggestion": "Please be more specific"}
+                        f"Multiple tasks match '{task_reference}'. Which one did you mean? Matches: {matches_str}"
                     )
                 
                 # Single match found
@@ -1467,10 +1619,10 @@ class ManageProductivityTool(BaseTool):
                         if event:
                             matches.append({"id": event.id, "title": event.title})
                     
+                    matches_str = ', '.join([f"{m['title']} (ID: {m['id']})" for m in matches])
                     return self._error_response(
                         "nylas", 
-                        f"Multiple events match '{event_reference}'. Which one did you mean?",
-                        {"matches": matches, "suggestion": "Please be more specific"}
+                        f"Multiple events match '{event_reference}'. Which one did you mean? Matches: {matches_str}"
                     )
                 
                 event_id = ai_result["event_id"]
@@ -1621,8 +1773,8 @@ class ManageProductivityTool(BaseTool):
                     logger.error(f"  Expected: {expected_start} - {expected_end}")
                     logger.error(f"  Got: {returned_start} - {returned_end}")
                     return self._error_response(
-                        provider="nylas",
-                        error=f"Event update failed - Nylas returned wrong timestamps. Expected {expected_start}-{expected_end}, got {returned_start}-{returned_end}"
+                        "nylas",
+                        f"Event update failed - Nylas returned wrong timestamps. Expected {expected_start}-{expected_end}, got {returned_start}-{returned_end}"
                     )
                 else:
                     logger.info(f"[DEBUG] Timestamp validation PASSED - update successful")
@@ -1658,8 +1810,8 @@ class ManageProductivityTool(BaseTool):
                         logger.error(f"  This means Nylas returned success but the update didn't actually work!")
                         
                         return self._error_response(
-                            provider="nylas",
-                            error=f"Update failed - Event still shows old times after update. Expected {expected_start}-{expected_end}, but re-query shows {verification_start}-{verification_end}. This indicates a Nylas sync issue."
+                            "nylas",
+                            f"Update failed - Event still shows old times after update. Expected {expected_start}-{expected_end}, but re-query shows {verification_start}-{verification_end}. This indicates a Nylas sync issue."
                         )
                     else:
                         logger.info(f"[DEBUG] Re-query CONFIRMS update persisted in Nylas")
@@ -1759,10 +1911,10 @@ class ManageProductivityTool(BaseTool):
                         if event:
                             matches.append({"id": event.id, "title": event.title})
                     
+                    matches_str = ', '.join([f"{m['title']} (ID: {m['id']})" for m in matches])
                     return self._error_response(
                         "nylas", 
-                        f"Multiple events match '{event_reference}'. Which one did you mean?",
-                        {"matches": matches, "suggestion": "Please be more specific"}
+                        f"Multiple events match '{event_reference}'. Which one did you mean? Matches: {matches_str}"
                     )
                 
                 event_id = ai_result["event_id"]
@@ -2221,10 +2373,10 @@ class ManageProductivityTool(BaseTool):
             "message": message
         }
     
-    def _error_response(self, provider: str, error: str) -> Dict[str, Any]:
+    def _error_response(self, provider: str, error: str, *args, **kwargs) -> Dict[str, Any]:
         """Create an error response."""
         return {
             "success": False,
-            "error": error,
+            "error": f"[NEW_CODE_WORKING] {error}",
             "provider": provider
         }
