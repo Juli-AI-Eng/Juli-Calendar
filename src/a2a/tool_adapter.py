@@ -65,7 +65,7 @@ def merge_context_with_arguments(arguments: Dict[str, Any], user_context: Dict[s
     return merged
 
 
-async def execute_tool_rpc(params: Dict[str, Any], headers: Dict[str, str]) -> Dict[str, Any]:
+def execute_tool_rpc(params: Dict[str, Any], headers: Dict[str, str]) -> Dict[str, Any]:
     """
     Execute a tool via JSON-RPC parameters.
     
@@ -114,7 +114,7 @@ async def execute_tool_rpc(params: Dict[str, Any], headers: Dict[str, str]) -> D
     
     try:
         # Execute the tool
-        result = await tool.execute(merged_params, credentials)
+        result = tool.execute(merged_params, credentials)
         
         # Add request_id to result if it has approval flow
         if result.get('needs_approval') and request_id:
@@ -134,7 +134,7 @@ async def execute_tool_rpc(params: Dict[str, Any], headers: Dict[str, str]) -> D
         }
 
 
-async def approve_tool_rpc(params: Dict[str, Any], headers: Dict[str, str]) -> Dict[str, Any]:
+def approve_tool_rpc(params: Dict[str, Any], headers: Dict[str, str]) -> Dict[str, Any]:
     """
     Handle tool approval via JSON-RPC.
     
@@ -185,7 +185,7 @@ async def approve_tool_rpc(params: Dict[str, Any], headers: Dict[str, str]) -> D
     
     try:
         # Execute the approval
-        result = await tool.execute(merged_params, credentials)
+        result = tool.execute(merged_params, credentials)
         
         # Add request_id to result
         if request_id:

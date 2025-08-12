@@ -131,9 +131,6 @@ class FindAndAnalyzeTool(BaseTool):
         )
         logger.info(f"[find_and_analyze] Search intent from analyzer: {search_intent}")
         
-        # Store the original query for semantic search
-        self.last_query = validated_data["query"]
-        
         # Execute search based on intent
         if search_intent.get("intent") == "workload_analysis":
             return await self._analyze_workload(
@@ -163,7 +160,7 @@ class FindAndAnalyzeTool(BaseTool):
         
         if scope in ["both", "tasks"]:
             tasks = await self._search_reclaim_tasks(
-                credentials, search_intent, user_context
+                credentials, search_intent, user_context, data["query"]
             )
         
         if scope in ["both", "events"]:
@@ -196,7 +193,8 @@ class FindAndAnalyzeTool(BaseTool):
         self,
         credentials: Dict[str, str],
         search_intent: Dict[str, Any],
-        user_context: Dict[str, Any]
+        user_context: Dict[str, Any],
+        query: str
     ) -> List[Dict[str, Any]]:
         """Search Reclaim tasks using semantic search."""
         try:
@@ -267,7 +265,6 @@ class FindAndAnalyzeTool(BaseTool):
                 logger.info(f"Time filtering reduced tasks to {len(task_dicts)} items")
             
             # Use semantic search to filter with the full original query
-            query = self.last_query if hasattr(self, 'last_query') else ""
             logger.info(f"Using semantic search with query: '{query}', found {len(task_dicts)} tasks")
             
             # Log the actual tasks for debugging
@@ -402,7 +399,7 @@ class FindAndAnalyzeTool(BaseTool):
     ) -> Dict[str, Any]:
         """Analyze workload across both systems."""
         # Get tasks and events for analysis
-        tasks = await self._search_reclaim_tasks(credentials, search_intent, user_context)
+        tasks = await self._search_reclaim_tasks(credentials, search_intent, user_context, data["query"])
         events = await self._search_nylas_events(credentials, search_intent, user_context)
         
         # Calculate workload metrics

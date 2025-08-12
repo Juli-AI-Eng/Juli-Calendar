@@ -1,159 +1,340 @@
-# Juli Approval System Guide
+# Juli Calendar Agent Approval System Guide
 
-Understanding how the approval system works between Juli and A2A agents for safe execution of sensitive actions.
+Understanding how the approval system works between Juli and the Calendar A2A agent to ensure safe execution of actions that can impact a user's schedule, tasks, or invite other people to meetings.
 
 ## Overview
 
-The approval system ensures users maintain control over potentially impactful actions. When an A2A agent needs user confirmation before proceeding, it returns a special response that Juli intercepts and handles with a native UI.
+The approval system ensures users maintain control over potentially impactful calendar and productivity actions. When the Calendar agent needs user confirmation before proceeding, it returns a special response that Juli intercepts and handles with a native UI.
+
+This is especially important for actions that:
+- Send invitations to other people
+- Modify events with existing participants  
+- Perform bulk operations on multiple items
+- Create potentially duplicate items
+- Resolve scheduling conflicts by suggesting alternative times
 
 ## How It Works
 
 ### Flow Diagram
 
 ```
-User Request → A2A Agent → Needs Approval? → Return Approval Request
-                                ↓                        ↓
-                              No                    Juli Shows UI
-                                ↓                        ↓
-                          Execute Action            User Decides
-                                                         ↓
-                                                   Approve/Deny
-                                                         ↓
-                                                  Retry with Decision
+User Request → Calendar Agent → Needs Approval? → Return Approval Request
+                                     ↓                        ↓
+                                   No                    Juli Shows UI
+                                     ↓                        ↓
+                               Execute Action            User Decides
+                                                             ↓
+                                                       Approve/Deny
+                                                             ↓
+                                                    Retry with Decision
 ```
 
 ### The Stateless Approval Protocol
 
-**Key Principle**: A2A agents don't store pending approvals. Instead, they return all data needed to execute the action, and Juli handles the approval UI and retry.
+**Key Principle**: The Calendar agent doesn't store pending approvals. Instead, when an action requires confirmation, it returns a `needs_approval: true` response. This response contains all the necessary `action_data` for the client (Juli) to retry the request once the user gives their consent.
 
-## Implementation
+### The Approval Flow
 
-### 1. When to Require Approval
+1. A tool is called with a user request (e.g., `tool.execute` for `manage_productivity`).
+2. The agent determines an approval is needed (e.g., scheduling with participants).
+3. The agent responds with `needs_approval: true`, including `action_type`, `action_data`, and a `preview` object.
+4. The client displays the `preview` information to the user in a confirmation UI.
+5. If the user approves, the client re-calls the *same* `tool.execute` method, but this time includes `approved: true` and the `action_data` from the previous response.
+6. The agent receives the approved request, bypasses the initial checks, and executes the action.
 
-```typescript
-function needsApproval(action: any): boolean {
-  // Require approval for:
-  // - Sending emails
-  // - Deleting data
-  // - Bulk operations
-  // - Financial transactions
-  // - Any irreversible actions
-  
-  return action.type === 'send' || 
-         action.bulk_count > 10 ||
-         action.involves_money ||
-         action.is_destructive;
+### Approval Response Format
+
+When an action requires approval, the agent returns the following structure:
+
+```json
+{
+  "needs_approval": true,
+  "action_type": "string",        // e.g., "event_create_with_participants"
+  "action_data": { ... },         // Complete data needed to execute the action upon approval
+  "preview": {
+    "summary": "string",          // A one-line summary for the user
+    "details": { ... },           // Detailed information for the preview UI
+    "risks": ["string"]           // Optional warnings about the action
+  }
 }
 ```
 
-### 2. Approval Response Format
+## Actions Requiring Approval
 
-```typescript
-interface ApprovalRequiredResponse {
-  needs_approval: true;
-  action_type: string;        // Type of action requiring approval
-  action_data: any;          // Complete data needed to execute
-  preview: {
-    summary: string;         // One-line summary
-    details: any;           // Detailed preview info
-    risks?: string[];       // Optional warnings
-  };
-  suggested_modifications?: any;  // Optional suggestions
+The following `action_type` values trigger an approval flow. This list is configured in the agent's `approval_config.py`.
+
+| Action Type                        | Description                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------ |
+| `event_create_with_participants`   | Creating a calendar event that invites other people                     |
+| `event_update_with_participants`   | Updating an event that has other participants                           |
+| `event_cancel_with_participants`   | Canceling an event that has other participants                          |
+| `bulk_delete` / `bulk_cancel`      | Deleting multiple items (tasks or events) at once                       |
+| `bulk_update` / `bulk_reschedule`  | Modifying multiple items (tasks or events) at once                      |
+| `bulk_complete`                    | Marking multiple tasks as complete at once                              |
+| `task_create_duplicate`            | Creating a task that appears to be a duplicate of an existing one       |
+| `event_create_duplicate`           | Creating an event that appears to be a duplicate of an existing one     |
+| `event_create_conflict_reschedule` | Creating an event that conflicts with another, requiring a reschedule   |
+| `recurring_create`                 | Creating a recurring series of events                                   |
+| `working_hours_update`             | Modifying the user's defined working hours                              |
+
+Actions on single, personal items (like creating or completing a solo task or event) typically do not require approval and are executed immediately.
+
+## Common Approval Scenarios
+
+### 1. Scheduling a Meeting with Participants
+
+Any event creation that includes other people requires approval to prevent sending unwanted invitations.
+
+**Action Type**: `event_create_with_participants`
+
+**Step 1: Initial Request**
+The user asks to schedule a meeting with others.
+
+*Request to `tool.execute`*:
+```json
+{
+  "tool": "manage_productivity",
+  "arguments": {
+    "query": "Schedule a project sync with Alex and Maria tomorrow at 10am"
+  },
+  "user_context": {
+    "timezone": "America/New_York",
+    "current_date": "2025-08-12",
+    "current_time": "14:30:00"
+  }
 }
 ```
 
-### 3. Real Example: Email Approval
+**Step 2: Approval Required Response**
+The agent detects participants and returns a request for approval.
 
-```typescript
-// User says: "reply to Sarah about the meeting"
-async function handleManageEmail(params: any) {
-  // AI generates the email
-  const emailContent = await generateEmail(params.query);
-  
-  // Check if approval needed
-  if (params.action === 'send' && !params.approved) {
-    return {
-      needs_approval: true,
-      action_type: 'send_email',
-      action_data: {
-        email_content: {
-          to: ['sarah@company.com'],
-          subject: 'Re: Tomorrow\'s Meeting',
-          body: 'Hi Sarah,\n\nThank you for...',
-          thread_id: 'thread_123'
-        },
-        original_params: params
-      },
-      preview: {
-        summary: 'Send email to sarah@company.com',
-        details: {
-          recipient: 'Sarah Johnson',
-          subject: 'Re: Tomorrow\'s Meeting',
-          word_count: 127,
-          has_attachments: false
-        }
+*Agent Response*:
+```json
+{
+  "needs_approval": true,
+  "action_type": "event_create_with_participants",
+  "action_data": {
+    "tool": "manage_productivity",
+    "params": { "query": "Schedule a project sync with Alex and Maria tomorrow at 10am" },
+    "intent": { "action": "create", "item_type": "event", "has_participants": true },
+    "event_details": {
+      "title": "Project Sync",
+      "start_time": "2025-08-13T10:00:00",
+      "end_time": "2025-08-13T11:00:00",
+      "participants": ["Alex", "Maria"]
+    }
+  },
+  "preview": {
+    "summary": "Schedule 'Project Sync' tomorrow at 10:00 AM",
+    "details": {
+      "has_participants": true,
+      "participant_count": 2,
+      "reasoning": "This action will send calendar invitations to other people."
+    },
+    "risks": ["This will send invitations to Alex and Maria."]
+  }
+}
+```
+
+**Step 3: Approved Request**
+After the user confirms, the client re-sends the request with the approval flag and action data.
+
+*Request to `tool.execute`*:
+```json
+{
+  "tool": "manage_productivity",
+  "arguments": {
+    "approved": true,
+    "action_data": { "...from previous response..." },
+    "action_type": "event_create_with_participants"
+  },
+  "user_context": { "...same as before..." }
+}
+```
+
+**Step 4: Final Execution**
+The agent receives the approved request and creates the event.
+
+*Final Agent Response*:
+```json
+{
+  "success": true,
+  "provider": "nylas",
+  "action": "created",
+  "data": {
+    "id": "evt_123abc",
+    "title": "Project Sync",
+    "when": { "start": 1755037200, "end": 1755040800 }
+  },
+  "message": "Successfully scheduled 'Project Sync' for 10:00 AM on Wednesday, August 13. Invitations have been sent."
+}
+```
+
+### 2. Resolving a Scheduling Conflict
+
+If a user tries to schedule an event at a time that is already booked, the agent will detect the conflict and suggest an alternative time.
+
+**Action Type**: `event_create_conflict_reschedule`
+
+**Scenario**: The user's calendar already has an event from 3:00 PM to 4:00 PM.
+
+**Step 1: Conflicting Request**
+*Request to `tool.execute`*:
+```json
+{
+  "tool": "manage_productivity",
+  "arguments": { "query": "Book a 1-on-1 with Chloe for tomorrow at 3pm" }
+}
+```
+
+**Step 2: Conflict Detected Response**
+The agent identifies the conflict and proposes the next available slot. The `action_data` already contains the details for the *suggested* time.
+
+*Agent Response*:
+```json
+{
+  "needs_approval": true,
+  "action_type": "event_create_conflict_reschedule",
+  "action_data": {
+    "event_details": {
+      "title": "1-on-1 with Chloe",
+      "start_time": "2025-08-13T16:00:00",
+      "end_time": "2025-08-13T17:00:00"
+    },
+    "conflict_info": {
+      "original_time": "2025-08-13T15:00:00",
+      "conflicting_event": "Team All-Hands"
+    }
+  },
+  "preview": {
+    "summary": "Schedule conflict detected for '1-on-1 with Chloe'",
+    "details": {
+      "message": "The requested time (3:00 PM) conflicts with 'Team All-Hands'.",
+      "suggested_alternative": {
+        "start": "4:00 PM on Wednesday, August 13",
+        "duration": "60 minutes"
       }
-    };
-  }
-  
-  // If approved, execute
-  if (params.approved && params.action_data) {
-    const result = await sendEmail(params.action_data.email_content);
-    return {
-      success: true,
-      message: 'Email sent successfully',
-      message_id: result.id
-    };
+    },
+    "risks": ["The originally requested time slot is not available."]
   }
 }
 ```
 
-### 4. Bulk Operations Example
+**Step 3: Approved Request**
+If the user accepts the alternative, the client sends the approval.
 
-```typescript
-// User says: "archive all newsletters older than a month"
-async function handleOrganizeInbox(params: any) {
-  // Find matching emails
-  const emails = await findEmails({
-    category: 'newsletter',
-    older_than: '1 month'
-  });
-  
-  // Require approval for bulk operations
-  if (!params.confirmed) {
-    return {
-      needs_approval: true,
-      action_type: 'bulk_archive',
-      action_data: {
-        email_ids: emails.map(e => e.id),
-        operation: 'archive',
-        filter_used: params.instruction
-      },
-      preview: {
-        summary: `Archive ${emails.length} newsletters`,
-        details: {
-          count: emails.length,
-          oldest_email: emails[0]?.date,
-          newest_email: emails[emails.length-1]?.date,
-          sample_subjects: emails.slice(0, 3).map(e => e.subject)
-        },
-        risks: emails.length > 100 ? 
-          ['This will archive a large number of emails'] : 
-          undefined
+*Request to `tool.execute`*:
+```json
+{
+  "tool": "manage_productivity",
+  "arguments": {
+    "approved": true,
+    "action_data": { "...from previous response..." },
+    "action_type": "event_create_conflict_reschedule"
+  }
+}
+```
+
+**Step 4: Final Execution**
+The agent creates the event at the suggested alternative time of 4:00 PM.
+
+### 3. Handling Duplicate Item Creation
+
+To prevent accidental duplicate entries, the agent checks for existing tasks or events with a similar title and time before creating a new one.
+
+**Action Type**: `task_create_duplicate` or `event_create_duplicate`
+
+**Scenario**: A task named "Review Q3 Performance Report" already exists.
+
+**Step 1: Duplicate Request**
+*Request to `tool.execute`*:
+```json
+{
+  "tool": "manage_productivity",
+  "arguments": { "query": "create task to review the Q3 performance report" }
+}
+```
+
+**Step 2: Duplicate Detected Response**
+The agent finds a similar existing task and asks for confirmation.
+
+*Agent Response*:
+```json
+{
+  "needs_approval": true,
+  "action_type": "task_create_duplicate",
+  "action_data": {
+    "task_details": {
+      "title": "Review Q3 Performance Report",
+      "priority": "P2",
+      "due_date": "2025-08-15T17:00:00"
+    }
+  },
+  "preview": {
+    "summary": "Duplicate task detected: 'Review Q3 Performance Report'",
+    "details": {
+      "message": "A task with a similar title already exists. Do you want to create another one?",
+      "existing_task": {
+        "id": "task_456def",
+        "title": "Review Q3 Performance Report",
+        "status": "NEW"
       }
-    };
-  }
-  
-  // Execute if confirmed
-  if (params.confirmed && params.action_data) {
-    await archiveEmails(params.action_data.email_ids);
-    return {
-      success: true,
-      message: `Archived ${params.action_data.email_ids.length} emails`
-    };
+    },
+    "risks": ["This will create a second task with a very similar title."]
   }
 }
 ```
+
+**Step 3 & 4: Approval and Execution**
+If approved, the agent proceeds to create a new, separate task, acknowledging it's a duplicate.
+
+### 4. Approving Bulk Operations
+
+Actions that affect multiple items at once, such as deleting or completing several tasks, require approval to prevent accidental data loss.
+
+**Action Type**: `bulk_complete`, `bulk_delete`, etc.
+
+**Step 1: Bulk Request**
+*Request to `tool.execute`*:
+```json
+{
+  "tool": "manage_productivity",
+  "arguments": { "query": "complete all tasks with 'onboarding' in the title" }
+}
+```
+
+**Step 2: Bulk Action Approval Response**
+The agent identifies this as a bulk operation and asks for confirmation. The preview should provide an idea of the scope.
+
+*Agent Response*:
+```json
+{
+  "needs_approval": true,
+  "action_type": "bulk_complete",
+  "action_data": {
+    "operation": "complete",
+    "task_ids": ["task_123", "task_456", "task_789", "task_abc"],
+    "filter_criteria": "title contains 'onboarding'"
+  },
+  "preview": {
+    "summary": "Complete 4 tasks matching 'onboarding'",
+    "details": {
+      "operation": "Complete",
+      "item_count": 4,
+      "sample_items": [
+         "Draft onboarding welcome email",
+         "Schedule onboarding check-in",
+         "Review onboarding survey results",
+         "Update onboarding documentation"
+      ]
+    },
+    "risks": ["This action will mark 4 tasks as complete and cannot be easily undone."]
+  }
+}
+```
+
+**Step 3 & 4: Approval and Execution**
+Once approved, the agent will find all matching tasks and mark them as complete, returning a summary of the result.
 
 ## What Juli Handles
 
@@ -174,10 +355,11 @@ if (response.needs_approval) {
   
   if (userDecision.approved) {
     // Retry with approval
-    const finalResponse = await callMCPTool(toolName, {
+    const finalResponse = await callA2ATool(toolName, {
       ...originalParams,
       approved: true,
-      action_data: response.action_data
+      action_data: response.action_data,
+      action_type: response.action_type
     });
     return finalResponse;
   } else {
@@ -192,170 +374,54 @@ if (response.needs_approval) {
 
 ### 2. Approval UI Components
 
-Juli renders a beautiful approval dialog with:
-- Clear action summary
-- Detailed preview (formatted based on action type)
-- Risk warnings in red
+Juli renders a confirmation dialog with:
+- Clear action summary (e.g., "Schedule 'Project Sync' tomorrow at 10:00 AM")
+- Detailed preview (participant count, conflict information, affected items)
+- Risk warnings in red (e.g., "This will send invitations to 3 people")
 - Approve/Deny buttons
 - Optional "Modify" button for editable actions
 
-### 3. Modification Flow
+### 3. Context-Aware Previews
 
-For editable actions (like emails), users can modify before approving:
+Different approval types get specialized UI treatment:
+- **Participant invitations**: Show who will be invited and what they'll receive
+- **Conflict resolution**: Display the conflict and suggested alternative times
+- **Bulk operations**: List affected items with counts and samples
+- **Duplicate detection**: Show the existing item for comparison
 
-```typescript
-// MCP returns suggested modifications
-{
-  needs_approval: true,
-  action_type: 'send_email',
-  action_data: { ... },
-  preview: { ... },
-  suggested_modifications: {
-    editable_fields: ['body', 'subject'],
-    constraints: {
-      body: { max_length: 10000 },
-      subject: { max_length: 200 }
-    }
-  }
-}
+## Best Practices for Client Implementation
 
-// Juli allows editing these fields in the approval dialog
+### 1. Provide Clear Previews
+Use the `preview` object to give the user a clear, unambiguous understanding of what will happen. For time-related actions, always show dates and times clearly.
+
+**✅ Good:**
+```json
+"summary": "Reschedule 'Project Standup' to tomorrow at 4:00 PM"
 ```
 
-## Best Practices
-
-### 1. Clear Preview Information
-
-```typescript
-// ✅ Good: Specific and actionable
-preview: {
-  summary: 'Send email to 3 team members about project update',
-  details: {
-    recipients: ['john@company.com', 'sarah@company.com', 'mike@company.com'],
-    subject: 'Project Alpha: Status Update',
-    mentions_deadline: true,
-    attachments: 0
-  }
-}
-
-// ❌ Bad: Vague
-preview: {
-  summary: 'Send email',
-  details: { count: 3 }
-}
+**❌ Bad:**
+```json
+"summary": "Update event"
 ```
 
-### 2. Appropriate Risk Warnings
+### 2. Handle Timezones
+When displaying times from the `preview` object, make sure to present them in the user's local timezone to avoid confusion.
 
-```typescript
-risks: [
-  // Only include real risks
-  'This will permanently delete 42 records',
-  'Email will be sent to all 1,847 subscribers',
-  'This action cannot be undone'
-]
+### 3. Design for Different Approval Types
+Your UI should adapt to the `action_type`. A conflict resolution approval (`event_create_conflict_reschedule`) should clearly show the original time and the suggested new time. A bulk operation approval (`bulk_complete`) should show how many items will be affected.
 
-// Don't include non-risks like:
-// 'This will send an email' (obvious from action)
-// 'Please review before approving' (redundant)
-```
+### 4. Maintain Statelessness
+Remember that the agent is stateless. Never rely on it to store a pending approval. The `action_data` object contains everything needed to re-run the request. Your client is responsible for managing the state of the approval UI.
 
-### 3. Granular Approval Control
+### 5. Implement Smart Defaults
+- Default to sending updates only to added/removed attendees for attendee list changes
+- Default to "this event only" when editing a single occurrence of a recurring event
+- Surface conflicts early with suggested alternative times
 
-```typescript
-// Allow users to control approval preferences
-interface ToolParams {
-  require_approval?: boolean;  // Override default
-  auto_approve_threshold?: number;  // For bulk operations
-}
-
-// Example: Don't require approval for small operations
-if (emails.length <= 5 && !params.require_approval) {
-  // Execute without approval
-}
-```
-
-### 4. Stateless Design
-
-```typescript
-// ✅ Good: Return all data needed
-return {
-  needs_approval: true,
-  action_data: {
-    email_content: fullEmailObject,
-    thread_id: threadId,
-    references: messageReferences
-  }
-};
-
-// ❌ Bad: Storing state
-const approvalId = generateId();
-pendingApprovals.set(approvalId, emailData);
-return {
-  needs_approval: true,
-  approval_id: approvalId  // Don't do this!
-};
-```
-
-## Common Approval Scenarios
-
-### 1. Communication Actions
-- Sending emails
-- Posting to social media
-- Sending messages
-- Making phone calls
-
-### 2. Data Modifications
-- Deleting records
-- Bulk updates
-- Archiving content
-- Modifying sensitive data
-
-### 3. Financial Operations
-- Processing payments
-- Issuing refunds
-- Changing billing
-- Subscription modifications
-
-### 4. System Changes
-- Deploying code
-- Changing configurations
-- Updating permissions
-- Modifying integrations
-
-## Testing Approvals
-
-```typescript
-describe('Approval Flow', () => {
-  it('should require approval for sending emails', async () => {
-    const response = await mcp.handleTool('manage_email', {
-      action: 'send',
-      query: 'email John about the meeting'
-    });
-    
-    expect(response.needs_approval).toBe(true);
-    expect(response.action_type).toBe('send_email');
-    expect(response.action_data).toHaveProperty('email_content');
-    expect(response.preview.summary).toContain('Send email');
-  });
-  
-  it('should execute when approved', async () => {
-    const approvalResponse = await mcp.handleTool('manage_email', {
-      action: 'send',
-      query: 'email John about the meeting'
-    });
-    
-    const finalResponse = await mcp.handleTool('manage_email', {
-      ...approvalResponse.action_data.original_params,
-      approved: true,
-      action_data: approvalResponse.action_data
-    });
-    
-    expect(finalResponse.success).toBe(true);
-    expect(finalResponse.message).toContain('sent');
-  });
-});
-```
+### 6. Provide Safety Nets
+- Implement undo functionality for completed actions
+- Show audit trails of calendar changes
+- Allow easy revert of series changes
 
 ## Security Considerations
 
@@ -363,50 +429,87 @@ describe('Approval Flow', () => {
 
 Always re-validate action data when executing approved actions:
 
-```typescript
-if (params.approved && params.action_data) {
-  // Re-validate the action data
-  if (!isValidEmailContent(params.action_data.email_content)) {
-    return {
-      error: 'Invalid email content in approval data'
-    };
-  }
-  
-  // Verify it matches what would be generated
-  const expectedContent = await generateEmail(params.action_data.original_params);
-  if (!contentMatches(expectedContent, params.action_data.email_content)) {
-    return {
-      error: 'Approval data does not match expected content'
-    };
-  }
-}
+```python
+if params.get("approved") and params.get("action_data"):
+    # Re-validate the action data
+    action_data = params["action_data"]
+    if not self._validate_event_details(action_data.get("event_details")):
+        return {
+            "error": "Invalid event details in approval data"
+        }
+    
+    # Verify credentials are still valid
+    if not self.credential_manager.is_setup_complete(credentials):
+        return {
+            "error": "Credentials no longer valid for approved action"
+        }
 ```
 
 ### 2. Prevent Approval Bypass
 
-```typescript
-// Always check approval status for sensitive actions
-if (action.type === 'send' && !params.approved) {
-  // Force approval flow
-  return { needs_approval: true, ... };
-}
+```python
+# Always check approval status for sensitive actions
+if self._requires_approval(action_type) and not params.get("approved"):
+    # Force approval flow
+    return { "needs_approval": True, ... }
 
-// Don't allow approval flag without action_data
-if (params.approved && !params.action_data) {
-  return {
-    error: 'Approved flag requires action_data'
-  };
-}
+# Don't allow approval flag without action_data
+if params.get("approved") and not params.get("action_data"):
+    return {
+        "error": "Approved flag requires action_data"
+    }
+```
+
+### 3. Audit Trail
+
+Log all approval actions for security and debugging:
+
+```python
+logger.info(f"Approval granted for {action_type}: {action_summary}")
+```
+
+## Testing Approval Flows
+
+```python
+def test_participant_invitation_approval():
+    # Test that participant invitations require approval
+    response = await calendar_agent.execute({
+        "tool": "manage_productivity",
+        "arguments": {
+            "query": "Schedule team meeting with John and Sarah tomorrow at 2pm"
+        }
+    })
+    
+    assert response["needs_approval"] == True
+    assert response["action_type"] == "event_create_with_participants"
+    assert "participants" in response["action_data"]["event_details"]
+    assert "This will send invitations" in response["preview"]["risks"][0]
+
+def test_approved_execution():
+    # Test that approved actions execute properly
+    approval_response = await get_approval_response()
+    
+    final_response = await calendar_agent.execute({
+        "tool": "manage_productivity", 
+        "arguments": {
+            "approved": True,
+            "action_data": approval_response["action_data"],
+            "action_type": "event_create_with_participants"
+        }
+    })
+    
+    assert final_response["success"] == True
+    assert "Invitations have been sent" in final_response["message"]
 ```
 
 ## Summary
 
-The Juli approval system provides:
+The Juli Calendar Agent approval system provides:
 
-1. **User Control** - Users always have final say on sensitive actions
-2. **Transparency** - Clear previews of what will happen
-3. **Flexibility** - Developers decide what needs approval
-4. **Simplicity** - Stateless design makes implementation easy
-5. **Security** - No way to bypass user approval for sensitive actions
+1. **User Control** - Users always have final say on actions affecting others or multiple items
+2. **Transparency** - Clear previews of what will happen, including who gets notified
+3. **Flexibility** - Developers decide what needs approval based on impact and risk
+4. **Simplicity** - Stateless design makes implementation straightforward
+5. **Security** - No way to bypass user approval for sensitive calendar actions
 
-By following this guide, your MCP server will integrate seamlessly with Juli's approval system, giving users confidence to use powerful tools while maintaining control over their data and actions.
+By following this guide, your implementation will integrate seamlessly with Juli's approval system, giving users confidence to use powerful calendar tools while maintaining control over their schedule and communications.

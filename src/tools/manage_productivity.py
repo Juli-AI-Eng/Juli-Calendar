@@ -2377,6 +2377,6 @@ class ManageProductivityTool(BaseTool):
         """Create an error response."""
         return {
             "success": False,
-            "error": f"[NEW_CODE_WORKING] {error}",
+            "error": f"{error}",
             "provider": provider
         }

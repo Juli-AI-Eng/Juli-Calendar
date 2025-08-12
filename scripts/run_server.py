@@ -100,7 +100,7 @@ def main():
         debug = False
     else:
         host = os.getenv("HOST", "0.0.0.0")
-        port = args.port or int(os.getenv("PORT", "5000"))
+        port = args.port or int(os.getenv("PORT", "5002"))
         debug = os.getenv("DEBUG", "false").lower() == "true"
     
     print(f"🌐 Server will run on http://{host}:{port}")

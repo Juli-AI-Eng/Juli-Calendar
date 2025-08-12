@@ -1,203 +1,218 @@
-# Juli Calendar Agent - A2A Protocol
+# Juli Calendar Agent
 
-An intelligent calendar and task management agent that seamlessly integrates Reclaim.ai (for smart task scheduling) and Nylas (for universal calendar access). Built exclusively with the A2A (Agent-to-Agent) protocol for seamless integration with Juli Brain and other Juli agents, using OpenAI GPT-5 to understand natural language and handle complex scheduling operations.
+An A2A (Agent-to-Agent) JSON-RPC agent for Juli that provides AI-powered calendar and task management. This agent intelligently combines Reclaim.ai for task management with Nylas for calendar operations, creating a comprehensive productivity assistant.
 
-## 🚀 Pure A2A Implementation
-The Juli Calendar Agent uses the modern A2A protocol (JSON-RPC 2.0) for all agent-to-agent communication, providing stateless, secure, and efficient integration with the Juli ecosystem.
+## 🌟 What it does
 
-## Key Features
+- **Smart Task Management**: Create, update, and manage tasks with natural language
+- **Calendar Intelligence**: Check availability, schedule events, and manage conflicts
+- **Unified Productivity**: Seamlessly integrates tasks and calendar events
+- **AI-Powered**: Uses GPT-4 for intelligent scheduling and natural language understanding
+- **Approval Flows**: Built-in approval system for sensitive operations
 
-### 🤖 Intelligent Natural Language Understanding
-- **GPT-5 Integration**: Uses OpenAI's latest model with strict schema validation for reliable parsing
-- **Smart Routing**: Automatically determines whether to create a task (Reclaim.ai) or calendar event (Nylas)
-- **Context Awareness**: Understands time zones, relative dates ("tomorrow at 2pm"), and participant mentions
+## 🚀 For Juli Users
 
-### 📋 Task Management (via Reclaim.ai)
-- Create, update, complete, and delete tasks with natural language
-- Smart scheduling that works around your calendar
-- Priority-based task management (P1-P4)
-- Duration estimation and due date handling
+Juli Calendar Agent is available as an official Juli integration. To use it:
 
-### 📅 Calendar Events (via Nylas)
-- Universal calendar support (Google Calendar, Outlook, iCloud, and more)
-- Create meetings with participants (with approval flow)
-- Cancel and reschedule events
-- Participant email validation and handling
+1. Open Juli and navigate to the Agents section
+2. Find "Calendar & Tasks" and click Connect
+3. Follow the OAuth flow to connect your calendar (Google, Microsoft, or iCloud)
+4. Connect your Reclaim.ai account for task management
+5. Start using natural language commands like:
+   - "Schedule a meeting with Sarah tomorrow at 2pm"
+   - "Create a task to review the proposal by Friday"
+   - "What's my availability next week?"
+   - "Move my 3pm meeting to Thursday"
 
-### ✅ Safety & Approval System
-- **Participant Protection**: Events with other people require explicit approval
-- **Bulk Operation Safety**: Mass deletions/updates need confirmation
-- **Duplicate Detection**: Smart detection prevents accidental duplicates (with numbered sequence support)
-- **Conflict Resolution**: Identifies scheduling conflicts and suggests alternatives
+## 🛠️ For Developers
 
-### 🔍 Advanced Features
-- **Availability Checking**: Find free time slots across both tasks and calendar
-- **Schedule Optimization**: AI-powered suggestions for better time management
-- **Workload Analysis**: Understand your productivity patterns
-- **Semantic Search**: Find tasks and events using natural language
+This repository serves as a reference implementation for building A2A agents for Juli. It demonstrates:
 
-## Quick Start
+- **A2A Protocol**: Complete JSON-RPC implementation with discovery, authentication, and tool execution
+- **Credential Injection**: Stateless architecture with Juli's credential management
+- **Natural Language Tools**: AI-powered tool design with GPT-5 integration
+- **Approval Flows**: User approval for sensitive operations
+- **Hybrid Integration**: Combining multiple services (Reclaim.ai + Nylas)
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/Juli-AI-Eng/Juli-Calendar.git
-   cd Juli-Calendar
-   ```
-
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Configure environment**
-   ```bash
-   cp .env.example .env
-   # Edit .env and add your OpenAI API key
-   ```
-
-4. **Run the server**
-   ```bash
-   # Production mode
-   python scripts/run_server.py --mode prod --port 5000
-
-   # E2E testing mode
-   python scripts/run_server.py --mode e2e --port 5002
-   ```
-
-5. **Connect via Juli Brain**
-   - The A2A agent will be available at `http://localhost:5002`
-   - Discovery endpoint: `http://localhost:5002/.well-known/a2a.json`
-   - RPC endpoint: `http://localhost:5002/a2a/rpc`
-   - Juli Brain will handle credential injection for Reclaim.ai and Nylas
-
-## A2A Protocol
-
-The agent communicates using the A2A (Agent-to-Agent) protocol:
-
-### Discovery
-- **Agent Card**: `/.well-known/a2a.json` - Describes agent capabilities
-- **Credentials**: `/.well-known/a2a-credentials.json` - Lists required credentials
-
-### JSON-RPC Methods
-- `agent.card` - Get agent information
-- `agent.handshake` - Initial connection
-- `tool.execute` - Execute a tool with arguments
-- `tool.approve` - Approve pending actions
-- `tool.list` - List available tools
-
-### Authentication
-- **Development**: Use `X-A2A-Dev-Secret` header
-- **Production**: OIDC bearer tokens from Juli Auth
-
-See [A2A Developer Guide](docs/A2A_DEVELOPER_GUIDE.md) for complete protocol documentation.
-
-## Architecture
-
-This A2A agent acts as an intelligent bridge between Juli Brain and your productivity tools:
-
-```
-User → Juli Brain → A2A Agent → GPT-5 Intent Router → Reclaim.ai (tasks)
-                                                    → Nylas (calendar events)
-```
-
-The system uses multiple specialized AI components:
-- **Intent Router**: Determines task vs. event and extracts basic information
-- **TaskAI**: Specialized parser for Reclaim.ai task operations
-- **EventAI**: Specialized parser for Nylas calendar events
-- **Approval System**: Enforces safety checks for sensitive operations
-
-## Tools Available
-
-### 🎯 manage_productivity
-Manage all aspects of your productivity with natural language:
-- Create and track tasks
-- Schedule meetings and appointments
-- Check availability
-- Block time for focused work
-
-### 🔍 find_and_analyze
-Search and analyze your productivity data:
-- Find tasks and events
-- Analyze workload patterns
-- Get productivity insights
-- Track project progress
-
-### 📊 check_availability
-Check availability and find free time:
-- Check specific time slots
-- Find available meeting times
-- Identify scheduling conflicts
-- Get smart suggestions
-
-### ⚡ optimize_schedule
-Optimize your schedule intelligently:
-- Rebalance workload
-- Find optimal times for tasks
-- Resolve scheduling conflicts
-- Create optimization action plans
-
-## Setup Guide
-
-### Prerequisites
-
-1. **Reclaim.ai Account**: Sign up at [app.reclaim.ai](https://app.reclaim.ai)
-2. **Nylas Account**: Sign up at [dashboard.nylas.com](https://dashboard-v3.nylas.com/register?utm_source=juli) (free tier available)
-3. **OpenAI API Key**: For AI functionality
-
-### Detailed Setup
-
-See [Deployment Guide](docs/DEPLOYMENT.md) for detailed setup instructions.
-
-## Development
-
-### Running Tests
+### Quick Start
 
 ```bash
-# Unit tests
-pytest tests/unit -v
+# Clone the repository
+git clone https://github.com/Juli-AI/juli-calendar-agent.git
+cd juli-calendar-agent
 
-# Integration tests
-pytest tests/integration -v
+# Install dependencies
+pip install -r requirements.txt
 
-# E2E tests (requires real API credentials in .env.test)
-pytest tests/e2e -v
+# Copy and configure environment variables
+cp .env.example .env
+# Edit .env with your API keys
+
+# Run the server
+python scripts/run_server.py
+
+# Server starts at http://localhost:5002
 ```
 
-### Project Structure
+### Agent Quickstart (A2A JSON-RPC)
 
-```
-├── src/
-│   ├── server.py          # Main Flask server
-│   ├── ai/                # AI components (routing, NLU)
-│   ├── tools/             # A2A tool implementations
-│   └── auth/              # Authentication handling
-├── tests/                 # Test suites
-├── scripts/               # Utility scripts
-├── manual_tests/          # Manual testing scripts
-└── juli-toolkit-config.json  # Juli integration config
+1. **Discover the agent**:
+```bash
+curl http://localhost:5002/.well-known/a2a.json
 ```
 
-## Documentation
+2. **Get credential requirements**:
+```bash
+curl http://localhost:5002/.well-known/a2a-credentials.json
+```
 
-- [Tools Documentation](docs/TOOLS_DOCUMENTATION.md) - Tool schemas and examples
-- [Deployment Guide](docs/DEPLOYMENT.md) - Production deployment
-- [A2A Developer Guide](docs/A2A_DEVELOPER_GUIDE.md) - A2A protocol documentation
-- [Approval System](docs/APPROVAL_SYSTEM_GUIDE.md) - How approval flows work
-- [OpenAI Function Calling](docs/FUNCTION_CALLING_OPENAI.md) - GPT-5 integration details
+3. **Execute a tool**:
+```bash
+curl -X POST http://localhost:5002/a2a/rpc \
+  -H "Content-Type: application/json" \
+  -H "X-A2A-Dev-Secret: your-dev-secret" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": "1",
+    "method": "tool.execute",
+    "params": {
+      "tool": "manage_productivity",
+      "arguments": {
+        "action": "create",
+        "query": "Create a task to review the proposal"
+      },
+      "user_context": {
+        "credentials": {
+          "RECLAIM_API_KEY": "your_api_key_here",
+          "NYLAS_GRANT_ID": "..."
+        },
+        "timezone": "America/New_York"
+      }
+    }
+  }'
+```
 
-## Security
+### Required Environment Variables
 
-- **No stored credentials**: User credentials are injected per-request via headers
-- **Approval flows**: Sensitive operations require explicit approval
-- **Secure by design**: Following A2A protocol best practices
+```bash
+# AI Provider
+OPENAI_API_KEY=sk-proj-...
 
-## License
+# Calendar Integration (Nylas)
+NYLAS_CLIENT_ID=...
+NYLAS_API_KEY=nyk_v0_...
+NYLAS_CALLBACK_URI=http://localhost:5002/api/nylas-calendar/callback
 
-MIT License - See [LICENSE](LICENSE) file for details.
+# Task Management (Reclaim.ai)
+RECLAIM_API_KEY=your_api_key_here
 
-## Support
+# A2A Configuration
+A2A_PUBLIC_BASE_URL=http://localhost:5002
+A2A_DEV_SECRET=your-dev-secret  # Optional for development
+```
 
-For issues and questions:
-- Open an issue on GitHub
-- Check the [troubleshooting guide](DEPLOYMENT.md#troubleshooting)
-- Review the [documentation](docs/)
+### OAuth Setup (Nylas)
+
+1. **Get the OAuth URL**:
+```bash
+curl http://localhost:5002/setup/connect-url
+```
+
+2. **Complete authentication** in your browser
+
+3. **Receive grant_id** from callback:
+```json
+{
+  "success": true,
+  "grant_id": "...",
+  "email": "user@example.com"
+}
+```
+
+## 📚 Documentation
+
+- [**Developer Guide**](docs/DEVELOPER_GUIDE.md) - Build and contribute to Juli agents
+- [**Setup Guide**](docs/SETUP_GUIDE.md) - Detailed setup instructions
+- [**A2A Protocol Guide**](docs/A2A_DEVELOPER_GUIDE.md) - Complete A2A implementation reference
+- [**Tools Documentation**](docs/TOOLS_DOCUMENTATION.md) - All available tools and their parameters
+- [**Approval System**](docs/APPROVAL_SYSTEM_GUIDE.md) - How the approval flow works
+- [**Integration Details**](docs/INTEGRATION_DETAILS.md) - Reclaim.ai and Nylas specifics
+- [**Docker Guide**](docs/DOCKER_GUIDE.md) - Container deployment instructions
+
+## 🏗️ Architecture
+
+```
+┌─────────────┐     JSON-RPC      ┌──────────────┐
+│  Juli Brain │ ◄──────────────► │ Calendar Agent│
+└─────────────┘                   └──────┬───────┘
+                                         │
+                     ┌───────────────────┼───────────────────┐
+                     │                   │                   │
+              ┌──────▼──────┐    ┌──────▼──────┐   ┌────────▼────────┐
+              │   GPT-5     │    │  Reclaim.ai │   │     Nylas      │
+              │  (OpenAI)   │    │   (Tasks)   │   │  (Calendar)    │
+              └─────────────┘    └─────────────┘   └────────────────┘
+```
+
+### Key Components
+
+- **A2A Protocol Handler** (`src/a2a/`): Implements the complete A2A specification
+- **Tool System** (`src/tools/`): Natural language tools for calendar and task operations
+- **AI Integration** (`src/ai/`): GPT-4 powered intent routing and natural language processing
+- **Approval System**: User approval for operations affecting others or causing conflicts
+- **OAuth Flow**: Secure calendar connection via Nylas Hosted Auth
+
+## 🧪 Testing
+
+```bash
+# Run unit tests
+pytest tests/unit/
+
+# Run integration tests
+pytest tests/integration/
+
+# Run E2E tests
+pytest tests/e2e/
+
+# Run all tests
+pytest
+```
+
+## 🐳 Docker Deployment
+
+```bash
+# Build and run with Docker Compose
+docker-compose up
+
+# Or build manually
+docker build -t juli-calendar-agent .
+docker run -p 5002:5002 --env-file .env juli-calendar-agent
+```
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Built with [Reclaim.ai](https://reclaim.ai) for intelligent task management
+- Powered by [Nylas](https://nylas.com) for universal calendar access
+- AI capabilities via [OpenAI](https://openai.com) GPT-4
+- Part of the [Juli AI](https://juli.ai) ecosystem
+
+## 📞 Support
+
+- **Documentation**: [Full docs](docs/)
+- **Issues**: [GitHub Issues](https://github.com/Juli-AI/juli-calendar-agent/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Juli-AI/juli-calendar-agent/discussions)
+- **Juli Support**: [support@juli.ai](mailto:support@juli.ai)

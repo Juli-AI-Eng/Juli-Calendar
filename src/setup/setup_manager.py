@@ -151,11 +151,11 @@ class SetupManager:
             }
         
         # Basic format validation
-        if not credentials["reclaim_api_key"].startswith("reclm_"):
+        if not credentials["reclaim_api_key"] or len(credentials["reclaim_api_key"]) < 10:
             return {
                 "validation_error": True,
                 "failed_system": "reclaim",
-                "message": "Reclaim API key should start with 'reclm_'"
+                "message": "Reclaim API key appears to be invalid or too short"
             }
         
         if not credentials["nylas_api_key"].startswith("nyk_"):
@@ -213,9 +213,10 @@ class SetupManager:
         
         # Step 2: Validate Nylas
         try:
+            import os
             nylas_client = NylasClient(
                 api_key=credentials['nylas_api_key'],
-                api_uri="https://api.us.nylas.com"  # Default to US, could be made configurable
+                api_uri=os.getenv("NYLAS_API_URI", "https://api.us.nylas.com")
             )
             grant = nylas_client.grants.find(grant_id=credentials['nylas_grant_id'])
             nylas_calendar = grant.data.email
