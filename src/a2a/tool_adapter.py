@@ -8,13 +8,12 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 
-def extract_credentials_from_context(user_context: Dict[str, Any], headers: Dict[str, str]) -> Dict[str, str]:
+def extract_credentials_from_context(user_context: Dict[str, Any]) -> Dict[str, str]:
     """
     Extract and map credentials from A2A format to tool format.
     
     Args:
         user_context: User context from JSON-RPC params
-        headers: HTTP headers (for backwards compatibility)
         
     Returns:
         Mapped credentials for tools
@@ -27,12 +26,6 @@ def extract_credentials_from_context(user_context: Dict[str, Any], headers: Dict
         'nylas_api_key': os.getenv('NYLAS_API_KEY'),  # Server-side key
         'nylas_grant_id': credentials.get('NYLAS_GRANT_ID') or credentials.get('EMAIL_ACCOUNT_GRANT')
     }
-    
-    # Fall back to header-based credentials for backwards compatibility
-    if not mapped['reclaim_api_key']:
-        mapped['reclaim_api_key'] = headers.get('x-user-credential-reclaim-api-key')
-    if not mapped['nylas_grant_id']:
-        mapped['nylas_grant_id'] = headers.get('x-user-credential-nylas-grant-id')
     
     # Filter out None values
     return {k: v for k, v in mapped.items() if v is not None}
@@ -101,7 +94,7 @@ async def execute_tool_rpc(params: Dict[str, Any], headers: Dict[str, str]) -> D
         raise ValueError(f"Tool not found: {tool_name}")
     
     # Extract and map credentials
-    credentials = extract_credentials_from_context(user_context, headers)
+    credentials = extract_credentials_from_context(user_context)
     
     # Check if credentials are needed
     if tool_name in ['manage_productivity', 'check_availability', 'find_and_analyze']:
@@ -175,7 +168,7 @@ async def approve_tool_rpc(params: Dict[str, Any], headers: Dict[str, str]) -> D
         raise ValueError(f"Tool not found: {tool_name}")
     
     # Extract and map credentials
-    credentials = extract_credentials_from_context(user_context, headers)
+    credentials = extract_credentials_from_context(user_context)
     
     # Build approval request in the format expected by tools
     approval_params = {

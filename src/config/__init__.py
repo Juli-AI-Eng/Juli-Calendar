@@ -1,1 +1,1 @@
-"""Configuration module for the hybrid productivity MCP server."""
+"""Configuration module for the Juli Calendar Agent."""

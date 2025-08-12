@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unified server runner for Reclaim MCP (prod or e2e)."""
+"""Unified server runner for Juli Calendar Agent (prod or e2e)."""
 import os
 import sys
 import logging
@@ -69,13 +69,13 @@ def find_python_executable():
 
 def main():
     """Run the server in prod-like or e2e mode."""
-    parser = argparse.ArgumentParser(description="Run MCP server")
+    parser = argparse.ArgumentParser(description="Run Juli Calendar Agent server")
     parser.add_argument("--mode", choices=["prod", "e2e"], default="prod")
     parser.add_argument("--port", type=int, default=None)
     args = parser.parse_args()
 
     python_cmd = find_python_executable()
-    print(f"🚀 Starting Reclaim MCP Server using {python_cmd}...")
+    print(f"🚀 Starting Juli Calendar Agent using {python_cmd}...")
 
     # Load environment
     load_environment(args.mode)
@@ -105,12 +105,12 @@ def main():
     
     print(f"🌐 Server will run on http://{host}:{port}")
     print(f"🔧 Mode: {args.mode} | Debug: {'enabled' if debug else 'disabled'}")
-    print("📡 Ready to receive MCP requests from Juli!")
+    print("📡 Ready to receive A2A requests from Juli Brain!")
     print("\nAvailable endpoints:")
-    print("  GET  /health          - Health check")
-    print("  GET  /mcp/tools       - List available tools")
-    print("  POST /mcp/tools/{id}  - Execute a tool")
-    print("  GET  /mcp/needs-setup - Check setup status")
+    print("  GET  /health                       - Health check")
+    print("  GET  /.well-known/a2a.json         - Agent discovery")
+    print("  GET  /.well-known/a2a-credentials.json - Credentials manifest")
+    print("  POST /a2a/rpc                      - JSON-RPC endpoint")
     print("\n" + "="*50)
     
     try:

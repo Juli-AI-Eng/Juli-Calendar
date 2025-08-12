@@ -1,26 +1,26 @@
-"""Custom exceptions for Reclaim MCP Server."""
+"""Custom exceptions for Juli Calendar Agent."""
 
 
-class ReclaimMCPError(Exception):
-    """Base exception for Reclaim MCP Server."""
+class JuliCalendarError(Exception):
+    """Base exception for Juli Calendar Agent."""
     pass
 
 
-class InvalidCredentialsError(ReclaimMCPError):
+class InvalidCredentialsError(JuliCalendarError):
     """Raised when credentials are invalid."""
     pass
 
 
-class SetupRequiredError(ReclaimMCPError):
+class SetupRequiredError(JuliCalendarError):
     """Raised when setup is required."""
     pass
 
 
-class ToolNotFoundError(ReclaimMCPError):
+class ToolNotFoundError(JuliCalendarError):
     """Raised when a tool is not found."""
     pass
 
 
-class ValidationError(ReclaimMCPError):
+class ValidationError(JuliCalendarError):
     """Raised when input validation fails."""
     pass

@@ -1,13 +1,13 @@
-# Hybrid Reclaim.ai + Nylas MCP Server - Development Guide
+# Hybrid Reclaim.ai + Nylas A2A Agent - Development Guide
 
 ## Overview
 
-This guide outlines the development of an intelligent hybrid productivity MCP server that combines the strengths of two complementary systems:
+This guide outlines the development of an intelligent hybrid productivity A2A agent that combines the strengths of two complementary systems:
 
 - **Reclaim.ai**: AI-powered task management, time blocking, and productivity optimization
 - **Nylas**: Universal calendar access (Google, Outlook, iCloud, Exchange) for events and availability
 
-The server operates as a comprehensive "productivity expert" within Juli, intelligently routing requests to the optimal system based on user intent.
+The agent operates as a comprehensive "productivity expert" within Juli, intelligently routing requests to the optimal system based on user intent.
 
 ## Core Philosophy
 

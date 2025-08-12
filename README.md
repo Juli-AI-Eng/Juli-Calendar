@@ -169,7 +169,7 @@ pytest tests/e2e -v
 ├── src/
 │   ├── server.py          # Main Flask server
 │   ├── ai/                # AI components (routing, NLU)
-│   ├── tools/             # MCP tool implementations
+│   ├── tools/             # A2A tool implementations
 │   └── auth/              # Authentication handling
 ├── tests/                 # Test suites
 ├── scripts/               # Utility scripts
@@ -181,7 +181,7 @@ pytest tests/e2e -v
 
 - [Tools Documentation](docs/TOOLS_DOCUMENTATION.md) - Tool schemas and examples
 - [Deployment Guide](docs/DEPLOYMENT.md) - Production deployment
-- [Development Guide](docs/MCP_DEVELOPER_GUIDE.md) - Contributing guidelines
+- [A2A Developer Guide](docs/A2A_DEVELOPER_GUIDE.md) - A2A protocol documentation
 - [Approval System](docs/APPROVAL_SYSTEM_GUIDE.md) - How approval flows work
 - [OpenAI Function Calling](docs/FUNCTION_CALLING_OPENAI.md) - GPT-5 integration details
 
@@ -189,7 +189,7 @@ pytest tests/e2e -v
 
 - **No stored credentials**: User credentials are injected per-request via headers
 - **Approval flows**: Sensitive operations require explicit approval
-- **Secure by design**: Following MCP best practices
+- **Secure by design**: Following A2A protocol best practices
 
 ## License
 

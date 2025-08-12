@@ -1,17 +1,17 @@
 # Juli Approval System Guide
 
-Understanding how the approval system works between Juli and MCP servers for safe execution of sensitive actions.
+Understanding how the approval system works between Juli and A2A agents for safe execution of sensitive actions.
 
 ## Overview
 
-The approval system ensures users maintain control over potentially impactful actions. When an MCP server needs user confirmation before proceeding, it returns a special response that Juli intercepts and handles with a native UI.
+The approval system ensures users maintain control over potentially impactful actions. When an A2A agent needs user confirmation before proceeding, it returns a special response that Juli intercepts and handles with a native UI.
 
 ## How It Works
 
 ### Flow Diagram
 
 ```
-User Request → MCP Server → Needs Approval? → Return Approval Request
+User Request → A2A Agent → Needs Approval? → Return Approval Request
                                 ↓                        ↓
                               No                    Juli Shows UI
                                 ↓                        ↓
@@ -24,7 +24,7 @@ User Request → MCP Server → Needs Approval? → Return Approval Request
 
 ### The Stateless Approval Protocol
 
-**Key Principle**: MCP servers don't store pending approvals. Instead, they return all data needed to execute the action, and Juli handles the approval UI and retry.
+**Key Principle**: A2A agents don't store pending approvals. Instead, they return all data needed to execute the action, and Juli handles the approval UI and retry.
 
 ## Implementation
 

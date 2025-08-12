@@ -1,1 +1,1 @@
-"""End-to-end tests for the hybrid MCP server."""
+"""End-to-end tests for the Juli Calendar Agent."""

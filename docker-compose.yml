@@ -1,12 +1,12 @@
 version: '3.8'
 
 services:
-  mcp-server:
+  juli-calendar-agent:
     build: 
       context: .
       dockerfile: Dockerfile
-    image: reclaim-mcp:latest
-    container_name: reclaim-mcp-server
+    image: juli-calendar-agent:latest
+    container_name: juli-calendar-agent-server
     ports:
       - "5002:5002"
     environment:
@@ -31,15 +31,15 @@ services:
 
   test-runner:
     build: .
-    image: reclaim-mcp:latest
-    container_name: reclaim-mcp-tests
+    image: juli-calendar-agent:latest
+    container_name: juli-calendar-agent-tests
     environment:
       - PYTHONDONTWRITEBYTECODE=1
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - RECLAIM_API_KEY=${RECLAIM_API_KEY}
       - NYLAS_API_KEY=${NYLAS_API_KEY}
       - NYLAS_GRANT_ID=${NYLAS_GRANT_ID}
-      - TEST_SERVER_URL=http://mcp-server:5002
+      - TEST_SERVER_URL=http://juli-calendar-agent:5002
     volumes:
       - ./src:/app/src:ro
       - ./tests:/app/tests:ro
@@ -47,5 +47,5 @@ services:
       - ./.env.test:/app/.env.test:ro
     command: pytest tests/e2e -xvs
     depends_on:
-      mcp-server:
+      juli-calendar-agent:
         condition: service_healthy

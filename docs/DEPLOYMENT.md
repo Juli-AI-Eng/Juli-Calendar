@@ -1,6 +1,6 @@
 # Production Deployment Guide
 
-This guide covers the differences between testing and production configurations for the Reclaim MCP server.
+This guide covers the differences between testing and production configurations for the Juli Calendar Agent.
 
 ## Environment Configuration Differences
 

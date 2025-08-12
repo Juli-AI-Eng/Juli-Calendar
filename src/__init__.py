@@ -1,3 +1,3 @@
-"""Reclaim MCP Server for Juli ecosystem."""
+"""Juli Calendar Agent for Juli ecosystem."""
 
-__version__ = "0.1.0"
+__version__ = "2.0.0"

@@ -1,1 +1,1 @@
-"""Tests for Reclaim MCP Server."""
+"""Tests for Juli Calendar Agent."""

@@ -1,10 +1,10 @@
-"""Base class for MCP tools."""
+"""Base class for A2A tools."""
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 
 
 class BaseTool(ABC):
-    """Base class for all MCP tools."""
+    """Base class for all A2A tools."""
     
     def __init__(self):
         """Initialize the tool."""
