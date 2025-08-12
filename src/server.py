@@ -153,10 +153,15 @@ def create_app() -> Flask:
             nylas_client_id = os.getenv("NYLAS_CLIENT_ID")
             nylas_api_key = os.getenv("NYLAS_API_KEY")
             
-            if not nylas_client_id or not nylas_api_key:
-                logger.error("Missing NYLAS_CLIENT_ID or NYLAS_API_KEY environment variables")
+            missing_vars = []
+            if not nylas_client_id:
+                missing_vars.append("NYLAS_CLIENT_ID")
+            if not nylas_api_key:
+                missing_vars.append("NYLAS_API_KEY")
+            if missing_vars:
+                logger.error(f"Missing environment variables for Nylas OAuth: {', '.join(missing_vars)}")
                 return jsonify({
-                    "error": "Server not configured for Nylas OAuth. Missing environment variables."
+                    "error": f"Server not configured for Nylas OAuth. Missing environment variable(s): {', '.join(missing_vars)}."
                 }), 500
             
             # Get the callback URL - in production this is https://juli-ai.com/api/nylas-calendar/callback
