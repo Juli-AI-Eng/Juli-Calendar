@@ -33,7 +33,7 @@ def validate_oidc_token(token: str) -> bool:
         audience = unverified_payload.get('aud')
         
         # Validate issuer against allowed issuers
-        allowed_issuers = ["https://auth.juli-ai.com"]
+        allowed_issuers = get_allowed_issuers()
         if issuer not in allowed_issuers:
             logger.warning(f"Invalid issuer: {issuer}")
             return False
