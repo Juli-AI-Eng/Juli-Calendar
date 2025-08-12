@@ -7,7 +7,7 @@ An A2A (Agent-to-Agent) JSON-RPC agent for Juli that provides AI-powered calenda
 - **Smart Task Management**: Create, update, and manage tasks with natural language
 - **Calendar Intelligence**: Check availability, schedule events, and manage conflicts
 - **Unified Productivity**: Seamlessly integrates tasks and calendar events
-- **AI-Powered**: Uses GPT-4 for intelligent scheduling and natural language understanding
+- **AI-Powered**: Uses GPT-5 for intelligent scheduling and natural language understanding
 - **Approval Flows**: Built-in approval system for sensitive operations
 
 ## 🚀 For Juli Users
@@ -158,7 +158,7 @@ curl http://localhost:5002/setup/connect-url
 
 - **A2A Protocol Handler** (`src/a2a/`): Implements the complete A2A specification
 - **Tool System** (`src/tools/`): Natural language tools for calendar and task operations
-- **AI Integration** (`src/ai/`): GPT-4 powered intent routing and natural language processing
+- **AI Integration** (`src/ai/`): GPT-5 powered intent routing and natural language processing
 - **Approval System**: User approval for operations affecting others or causing conflicts
 - **OAuth Flow**: Secure calendar connection via Nylas Hosted Auth
 
