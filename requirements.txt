@@ -1,0 +1,32 @@
+# Core dependencies
+Flask==3.0.3
+requests==2.32.3
+urllib3==2.2.2
+charset-normalizer==3.3.2
+idna==3.10
+certifi==2024.8.30
+typing-extensions==4.12.2
+
+# Nylas SDK
+nylas==6.5.0
+
+# OpenAI API
+openai==1.46.0
+
+# JWT for OIDC validation
+PyJWT[crypto]==2.9.0
+cryptography==42.0.8
+
+# Development dependencies
+pytest==8.3.3
+pytest-cov==5.0.0
+pytest-mock==3.14.0
+coverage==7.6.2
+
+# Code quality
+black==24.8.0
+flake8==7.1.1
+mypy==1.11.2
+
+# Environment
+python-dotenv==1.0.1

@@ -2,6 +2,9 @@
 
 import os
 import logging
+import jwt
+import requests
+import time
 from datetime import datetime
 from typing import Dict, Any, Optional
 from flask import Request
@@ -10,71 +13,152 @@ import json
 logger = logging.getLogger(__name__)
 
 
+def validate_oidc_token(token: str) -> bool:
+    """
+    Validate OIDC JWT token according to A2A protocol.
+    
+    Args:
+        token: The JWT token to validate
+        
+    Returns:
+        bool: True if token is valid, False otherwise
+    """
+    try:
+        # Decode token without verification first to get header info
+        unverified_header = jwt.get_unverified_header(token)
+        unverified_payload = jwt.decode(token, options={"verify_signature": False})
+        
+        # Extract issuer and audience
+        issuer = unverified_payload.get('iss')
+        audience = unverified_payload.get('aud')
+        
+        # Validate issuer against allowed issuers
+        allowed_issuers = ["https://auth.juli-ai.com"]
+        if issuer not in allowed_issuers:
+            logger.warning(f"Invalid issuer: {issuer}")
+            return False
+        
+        # Validate audience
+        allowed_audiences = ["juli-calendar"]
+        if audience not in allowed_audiences:
+            logger.warning(f"Invalid audience: {audience}")
+            return False
+        
+        # Get JWKS from issuer to validate signature
+        try:
+            jwks_url = f"{issuer}/.well-known/jwks.json"
+            jwks_response = requests.get(jwks_url, timeout=10)
+            jwks_response.raise_for_status()
+            jwks = jwks_response.json()
+        except Exception as e:
+            logger.error(f"Failed to fetch JWKS from {jwks_url}: {e}")
+            # In production, we should fail here. For now, log and continue.
+            return False
+        
+        # Find matching key
+        kid = unverified_header.get('kid')
+        public_key = None
+        
+        for key in jwks.get('keys', []):
+            if key.get('kid') == kid:
+                try:
+                    from jwt.algorithms import RSAAlgorithm
+                    public_key = RSAAlgorithm.from_jwk(key)
+                    break
+                except Exception as e:
+                    logger.error(f"Failed to parse JWK: {e}")
+                    continue
+        
+        if not public_key:
+            logger.warning(f"No matching key found for kid: {kid}")
+            return False
+        
+        # Verify the token with the public key
+        try:
+            decoded_token = jwt.decode(
+                token, 
+                public_key, 
+                algorithms=['RS256'],
+                audience=audience,
+                issuer=issuer,
+                options={
+                    "verify_exp": True,
+                    "verify_iat": True,
+                    "verify_aud": True,
+                    "verify_iss": True
+                }
+            )
+            
+            logger.info(f"OIDC token validated successfully for subject: {decoded_token.get('sub')}")
+            return True
+            
+        except jwt.ExpiredSignatureError:
+            logger.warning("Token has expired")
+            return False
+        except jwt.InvalidAudienceError:
+            logger.warning("Invalid audience in token")
+            return False
+        except jwt.InvalidIssuerError:
+            logger.warning("Invalid issuer in token")
+            return False
+        except jwt.InvalidTokenError as e:
+            logger.warning(f"Invalid token: {e}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"OIDC token validation error: {e}")
+        return False
+
+
 def get_agent_card() -> Dict[str, Any]:
     """Get the A2A Agent Card for discovery."""
     return {
         "agent_id": "juli-calendar",
-        "agent_name": "Juli Calendar Agent",
-        "version": "2.0.0",
-        "description": "AI-powered calendar and task management agent for Juli",
-        "author": {
-            "name": "Juli AI",
-            "email": "support@juli-ai.com"
-        },
-        "capabilities": {
-            "tools": [
-                {
-                    "name": "manage_productivity",
-                    "description": "Create, update, and manage tasks and calendar events using natural language"
-                },
-                {
-                    "name": "check_availability",
-                    "description": "Check calendar availability and find free time slots"
-                },
-                {
-                    "name": "find_and_analyze",
-                    "description": "Search and analyze calendar events and tasks"
-                }
-            ]
-        },
-        "auth": {
-            "schemes": [
-                {
-                    "type": "oidc",
-                    "issuers": ["https://auth.juli-ai.com"],
-                    "audiences": ["juli-calendar"]
-                },
-                {
-                    "type": "dev_secret",
-                    "header": "X-A2A-Dev-Secret",
-                    "description": "Development authentication using shared secret"
-                }
-            ]
-        },
-        "rpc": {
-            "endpoint": "/a2a/rpc",
-            "version": "2.0"
-        },
+        "version": "2.0.0", 
+        "description": "Calendar and task management agent that can create events, manage tasks, check availability, and optimize schedules. Supports approval-first execution and agent-to-agent auth.",
+        "auth": [
+            {
+                "type": "oidc",
+                "audience": "juli-calendar",
+                "issuers": ["https://auth.juli-ai.com"]
+            },
+            {
+                "type": "shared_secret",
+                "header": "X-A2A-Dev-Secret"
+            }
+        ],
         "approvals": {
-            "required_for": [
-                "event_create_with_participants",
-                "bulk_operation",
-                "event_create_conflict_reschedule",
-                "duplicate_task_creation"
-            ],
-            "description": "Approvals required for operations affecting multiple items or involving other people"
+            "modes": ["stateless_preview_then_approve"]
         },
-        "context": {
-            "injections": [
-                "user_name",
-                "user_email",
-                "user_timezone",
-                "current_date",
-                "current_time"
-            ],
-            "description": "User context automatically injected by Juli"
+        "context_requirements": {
+            "credentials": ["RECLAIM_API_KEY", "NYLAS_GRANT_ID"]
         },
-        "server_time": datetime.utcnow().isoformat() + "Z"
+        "capabilities": [
+            {
+                "name": "manage_productivity",
+                "description": "Create, update, and manage tasks and calendar events using natural language"
+            },
+            {
+                "name": "check_availability", 
+                "description": "Check calendar availability and find free time slots"
+            },
+            {
+                "name": "find_and_analyze",
+                "description": "Search and analyze calendar events and tasks"
+            },
+            {
+                "name": "optimize_schedule",
+                "description": "AI-powered schedule optimization and time management"
+            }
+        ],
+        "rpc": {
+            "endpoint": "/a2a/rpc"
+        },
+        "extensions": {
+            "x-juli": {
+                "credentials_manifest": "/.well-known/a2a-credentials.json"
+            }
+        }
     }
 
 
@@ -91,16 +175,18 @@ def get_credentials_manifest() -> Dict[str, Any]:
                 "required": True,
                 "flows": [
                     {
-                        "type": "api_key",
-                        "instructions": "Get your API key from Reclaim.ai:\n1. Go to https://app.reclaim.ai\n2. Click Settings → Integrations → API\n3. Copy your API key",
-                        "validation_endpoint": "/setup/validate-reclaim"
+                        "type": "manual_with_validation",
+                        "instructions": "Get your API key from Reclaim.ai:\n1. Go to https://app.reclaim.ai/settings/developer\n2. Click 'Generate New API Key'\n3. Name it 'Juli Integration'\n4. Copy the key (this is a long alphanumeric string)",
+                        "validation_endpoint": "/setup/validate-reclaim",
+                        "deep_link": "https://app.reclaim.ai/settings/developer",
+                        "format_hint": "Long alphanumeric API key"
                     }
                 ]
             },
             {
                 "key": "NYLAS_GRANT_ID",
-                "display_name": "Calendar Account Grant",
-                "description": "Grant for accessing your calendar (Google, Microsoft, etc)",
+                "display_name": "Calendar Account",
+                "description": "Connect your calendar (Google, Outlook, or iCloud)",
                 "sensitive": True,
                 "required": True,
                 "flows": [
@@ -108,21 +194,31 @@ def get_credentials_manifest() -> Dict[str, Any]:
                         "type": "hosted_auth",
                         "connect_url": "/setup/connect-url",
                         "callback": "/api/nylas-calendar/callback",
-                        "providers": ["google", "microsoft"],
+                        "providers": ["google", "microsoft", "icloud"],
                         "provider_scopes": {
                             "google": [
-                                "openid",
-                                "https://www.googleapis.com/auth/userinfo.email",
-                                "https://www.googleapis.com/auth/calendar",
-                                "https://www.googleapis.com/auth/calendar.events",
-                                "https://www.googleapis.com/auth/tasks"
+                                "calendar",
+                                "calendar.readonly",
+                                "calendar.events", 
+                                "calendar.events.readonly",
+                                "admin.directory.resource.calendar.readonly",
+                                "contacts",
+                                "contacts.readonly",
+                                "contacts.other.readonly"
                             ],
                             "microsoft": [
-                                "openid",
-                                "email",
+                                "Calendars.Read",
+                                "Calendars.Read.Shared",
                                 "Calendars.ReadWrite",
-                                "Tasks.ReadWrite",
-                                "User.Read"
+                                "Calendars.ReadWrite.Shared",
+                                "Contacts.Read",
+                                "Contacts.Read.Shared",
+                                "Contacts.ReadWrite",
+                                "Contacts.ReadWrite.Shared"
+                            ],
+                            "icloud": [
+                                "calendar",
+                                "contacts"
                             ]
                         }
                     }
@@ -156,21 +252,18 @@ def authenticate_agent(request: Request) -> bool:
             logger.info("A2A agent authenticated via bearer token (dev mode)")
             return True
         
-        # TODO: Implement proper OIDC token validation
-        # This would involve:
-        # 1. Decoding the JWT
-        # 2. Verifying the signature
-        # 3. Checking issuer and audience
-        # 4. Validating expiration
-        
-        logger.warning("OIDC token validation not yet implemented")
-        return False
+        # Implement OIDC token validation
+        try:
+            return validate_oidc_token(token)
+        except Exception as e:
+            logger.error(f"OIDC token validation failed: {e}")
+            return False
     
     logger.warning("A2A agent authentication failed - no valid credentials")
     return False
 
 
-async def handle_rpc_request(request_data: Dict[str, Any], headers: Dict[str, str]) -> Dict[str, Any]:
+def handle_rpc_request(request_data: Dict[str, Any], headers: Dict[str, str]) -> Dict[str, Any]:
     """
     Handle incoming JSON-RPC 2.0 requests.
     
@@ -213,12 +306,12 @@ async def handle_rpc_request(request_data: Dict[str, Any], headers: Dict[str, st
         elif method == 'tool.execute':
             # Import here to avoid circular dependency
             from .tool_adapter import execute_tool_rpc
-            result = await execute_tool_rpc(params, headers)
+            result = execute_tool_rpc(params, headers)
             
         elif method == 'tool.approve':
             # Import here to avoid circular dependency
             from .tool_adapter import approve_tool_rpc
-            result = await approve_tool_rpc(params, headers)
+            result = approve_tool_rpc(params, headers)
             
         elif method == 'tool.list':
             # List available tools

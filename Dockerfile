@@ -27,10 +27,10 @@ ENV FLASK_APP=src.server:create_app
 # Create logs directory
 RUN mkdir -p /app/logs
 
-EXPOSE 5001
+EXPOSE 5002
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:5001/health || exit 1
+  CMD curl -f http://localhost:5002/health || exit 1
 
 CMD ["python", "scripts/run_server.py"]

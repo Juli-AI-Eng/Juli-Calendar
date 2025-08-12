@@ -149,3 +149,33 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Repomix output files
+.repomix-output.txt
+.repomix-plan-files.txt
+.repomix-plan-filtered.txt
+repomix-output.txt
+
+# Temporary development files
+test_*.py
+check_*.py
+test_ai_direct.py
+test_bulk_creation.py
+test_event_ai_debug.py
+test_improved_similarity.py
+test_intent_router_debug.py
+test_similarity.py
+test_task3.py
+
+# Local research and analysis files
+local-research/
+full_test_*.txt
+test_results.txt
+final_test_results.txt
+
+# Tool configuration files
+juli-toolkit-config.json
+vibe-tools.config.json
+
+# IDE files
+.cursor/
