@@ -248,9 +248,11 @@ def create_app() -> Flask:
             # Exchange the code for an access token and grant_id
             # In Nylas V3, the API key is used instead of client secret
             try:
-                logger.info(f"Attempting code exchange with client_id: {nylas_client_id}")
+                # Log only a hash of the client_id for debugging
+                client_id_hash = hashlib.sha256(nylas_client_id.encode()).hexdigest()[:8] if nylas_client_id else "None"
+                logger.info(f"Attempting code exchange with client_id hash: {client_id_hash}")
                 logger.info(f"Using callback URL: {callback_url}")
-                logger.info(f"API key starts with: {nylas_api_key[:10] if nylas_api_key else 'None'}")
+                # Do not log any part of the API key
                 
                 # Create the exchange request object
                 # Explicitly pass the API key as client_secret for V3
