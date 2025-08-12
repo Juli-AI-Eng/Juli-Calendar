@@ -39,7 +39,7 @@ def validate_oidc_token(token: str) -> bool:
             return False
         
         # Validate audience
-        allowed_audiences = ["juli-calendar"]
+        allowed_audiences = get_allowed_audiences()
         if audience not in allowed_audiences:
             logger.warning(f"Invalid audience: {audience}")
             return False
