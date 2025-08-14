@@ -143,10 +143,10 @@ def create_app() -> Flask:
     
     # ===== OAuth Setup Endpoints (Nylas) =====
     
-    @app.route("/setup/connect-url", methods=["GET"])
-    def setup_connect_url():
+    @app.route("/auth/connect", methods=["GET"])
+    def auth_connect():
         """
-        Return Nylas Hosted Auth URL as JSON (following Juli-Email pattern).
+        Return Nylas Hosted Auth URL as JSON per A2A spec.
         This endpoint returns the URL that Juli Brain will redirect the user to.
         """
         try:
@@ -228,6 +228,22 @@ def create_app() -> Flask:
                 error = request.args.get("error")
                 error_description = request.args.get("error_description")
                 logger.error(f"OAuth callback error: {error} - {error_description}")
+                
+                # Redirect to Juli Brain with error status
+                juli_brain_callback = os.getenv("JULI_BRAIN_CALLBACK_URI")
+                if juli_brain_callback:
+                    from urllib.parse import urlencode
+                    from flask import redirect
+                    params = {
+                        'status': 'error',
+                        'error': error_description or error or "Authorization failed",
+                        'agent_id': 'juli-calendar',
+                        'credential_key': 'NYLAS_GRANT_ID'
+                    }
+                    redirect_url = f"{juli_brain_callback}?{urlencode(params)}"
+                    return redirect(redirect_url)
+                
+                # Fallback if JULI_BRAIN_CALLBACK_URI not set
                 return jsonify({
                     "error": error_description or error or "Authorization failed"
                 }), 400
@@ -281,135 +297,155 @@ def create_app() -> Flask:
                 
                 logger.info(f"Successfully obtained grant_id: {grant_id} for email: {email}")
                 
-                # Return the grant_id and email for Juli Brain to store
-                # The email is the calendar account email which can be used for validation
-                return jsonify({
-                    "success": True,
-                    "grant_id": grant_id,
-                    "email": email,
-                    "calendar_email": email,  # Explicitly mark this as the calendar email
-                    "message": "Calendar connected successfully!",
-                    "next_step": "Connect Reclaim.ai using the SAME calendar account"
-                })
+                # Redirect to Juli Brain callback with grant information
+                # This follows the A2A three-step OAuth callback chain
+                from urllib.parse import urlencode
+                from flask import redirect
+                
+                juli_brain_callback = os.getenv("JULI_BRAIN_CALLBACK_URI")
+                if not juli_brain_callback:
+                    logger.error("JULI_BRAIN_CALLBACK_URI not configured")
+                    return jsonify({"error": "Server misconfigured - missing JULI_BRAIN_CALLBACK_URI"}), 500
+                
+                # Build redirect URL with grant information
+                params = {
+                    'grant_id': grant_id,
+                    'credential_key': 'NYLAS_GRANT_ID',  # Match the key in manifest
+                    'agent_id': 'juli-calendar',  # Our agent ID, not inbox-mcp
+                    'email': email,
+                    'status': 'success'
+                }
+                redirect_url = f"{juli_brain_callback}?{urlencode(params)}"
+                logger.info(f"Redirecting to Juli Brain: {redirect_url}")
+                return redirect(redirect_url)
                 
             except Exception as token_error:
                 logger.error(f"Token exchange failed: {token_error}", exc_info=True)
+                
+                # Even on error, redirect to Juli Brain with error status
+                juli_brain_callback = os.getenv("JULI_BRAIN_CALLBACK_URI")
+                if juli_brain_callback:
+                    from urllib.parse import urlencode
+                    from flask import redirect
+                    params = {
+                        'status': 'error',
+                        'error': f"Failed to exchange code: {str(token_error)}",
+                        'agent_id': 'juli-calendar',
+                        'credential_key': 'NYLAS_GRANT_ID'
+                    }
+                    redirect_url = f"{juli_brain_callback}?{urlencode(params)}"
+                    return redirect(redirect_url)
+                
+                # Fallback if JULI_BRAIN_CALLBACK_URI not set
                 return jsonify({
                     "error": f"Failed to exchange code: {str(token_error)}"
                 }), 500
                 
         except Exception as e:
             logger.error(f"OAuth callback error: {e}", exc_info=True)
+            
+            # Even on error, redirect to Juli Brain with error status
+            juli_brain_callback = os.getenv("JULI_BRAIN_CALLBACK_URI")
+            if juli_brain_callback:
+                from urllib.parse import urlencode
+                from flask import redirect
+                params = {
+                    'status': 'error',
+                    'error': f"Callback processing failed: {str(e)}",
+                    'agent_id': 'juli-calendar',
+                    'credential_key': 'NYLAS_GRANT_ID'
+                }
+                redirect_url = f"{juli_brain_callback}?{urlencode(params)}"
+                return redirect(redirect_url)
+            
+            # Fallback if JULI_BRAIN_CALLBACK_URI not set
             return jsonify({
                 "error": f"Callback processing failed: {str(e)}"
             }), 500
     
-    @app.route("/setup/validate-complete", methods=["POST"])
-    def setup_validate_complete():
-        """Validate both Reclaim and Nylas are connected to the same calendar."""
-        try:
-            from src.setup.setup_manager import SetupManager
-            
-            data = request.get_json()
-            credentials = {
-                "reclaim_api_key": data.get("reclaim_api_key"),
-                "nylas_api_key": data.get("nylas_api_key"),
-                "nylas_grant_id": data.get("nylas_grant_id")
-            }
-            
-            # Use SetupManager for comprehensive validation
-            setup_manager = SetupManager()
-            result = setup_manager.validate_complete_setup(credentials)
-            
-            # Return appropriate status code based on validation result
-            if result.get("validation_error"):
-                if result.get("calendar_mismatch"):
-                    return jsonify(result), 409  # Conflict
-                else:
-                    return jsonify(result), 400  # Bad Request
-            
-            return jsonify(result), 200
-            
-        except Exception as e:
-            logger.error(f"Complete validation error: {e}", exc_info=True)
-            return jsonify({
-                "validation_error": True,
-                "error": f"Validation failed: {str(e)}"
-            }), 500
+    # Note: /setup/* endpoints have been removed per A2A spec
+    # Only manifest-declared endpoints are allowed
+    # Validation is now handled by /validate/{credential_key} endpoints
     
-    @app.route("/setup/validate-reclaim", methods=["POST"])
-    def setup_validate_reclaim():
-        """Validate Reclaim.ai API key in real-time."""
+    @app.route("/validate/NYLAS_GRANT_ID", methods=["POST"])
+    def validate_nylas_grant():
+        """
+        Validate Nylas grant ID per A2A spec.
+        Called by Juli Brain, NOT by frontend.
+        Agent does NOT store credentials - only validates them.
+        """
+        data = request.get_json()
+        credential_value = data.get("credential_value")
+        
+        if not credential_value:
+            return jsonify({"valid": False, "error": "Missing credential_value"}), 400
+        
         try:
-            data = request.get_json()
-            if not data or not data.get("reclaim_api_key"):
-                return jsonify({
-                    "valid": False,
-                    "error": "Missing reclaim_api_key in request"
-                }), 400
+            # Test the grant with Nylas
+            from nylas import Client as NylasClient
             
-            api_key = data["reclaim_api_key"]
+            nylas = NylasClient(
+                api_key=os.getenv("NYLAS_API_KEY"),
+                api_uri=os.getenv("NYLAS_API_URI", "https://api.us.nylas.com")
+            )
             
-            # Basic format validation
-            if not api_key or len(api_key) < 10:
-                return jsonify({
-                    "valid": False,
-                    "error": "Invalid key format. Reclaim API key appears to be too short."
-                }), 400
+            # Try to get grant information
+            grant = nylas.grants.find(grant_id=credential_value)
             
-            # Test the API key by making a simple API call
-            from reclaim_sdk.client import ReclaimClient
-            
-            try:
-                client = ReclaimClient.configure(token=api_key)
-                # Try to get current user info as a validation test
-                user_info = client.get("/api/users/current")
-                
-                # Get the calendar email - Reclaim uses 'email' field as primary
-                calendar_email = (
-                    user_info.get("calendar_email") or  # Try this first if it exists
-                    user_info.get("email") or  # This is the primary field per research
-                    user_info.get("primary_email")  # Fallback
-                )
-                
-                # Check if user provided a Nylas email to validate against
-                nylas_email = data.get("nylas_calendar_email")
-                calendar_match = None
-                
-                if nylas_email and calendar_email:
-                    calendar_match = calendar_email.lower() == nylas_email.lower()
-                    if not calendar_match:
-                        logger.warning(f"Calendar mismatch: Reclaim={calendar_email}, Nylas={nylas_email}")
-                
-                response_data = {
-                    "valid": True,
-                    "user_email": user_info.get("email"),
-                    "calendar_email": calendar_email,
-                    "message": "Successfully connected to Reclaim.ai!"
+            return jsonify({
+                "valid": True,
+                "metadata": {
+                    "email": grant.email if hasattr(grant, 'email') else None,
+                    "provider": grant.provider if hasattr(grant, 'provider') else None
                 }
-                
-                # Add calendar matching info if we have Nylas email to compare
-                if nylas_email:
-                    response_data["calendar_match"] = calendar_match
-                    if not calendar_match:
-                        response_data["warning"] = f"⚠️ Calendar mismatch! Reclaim is using {calendar_email} but Nylas is using {nylas_email}"
-                        response_data["fix"] = "Both services must use the same calendar account"
-                
-                return jsonify(response_data)
-                
-            except Exception as api_error:
-                logger.error(f"Reclaim API validation failed: {api_error}")
-                return jsonify({
-                    "valid": False,
-                    "error": "Could not connect to Reclaim.ai. Please check your API key."
-                }), 400
-                
+            })
         except Exception as e:
-            logger.error(f"Reclaim validation error: {e}", exc_info=True)
+            logger.error(f"Nylas grant validation failed: {e}")
             return jsonify({
                 "valid": False,
-                "error": f"Validation failed: {str(e)}"
-            }), 500
+                "error": str(e)
+            })
+    
+    @app.route("/validate/RECLAIM_API_KEY", methods=["POST"])
+    def validate_reclaim_key():
+        """
+        Validate Reclaim API key per A2A spec.
+        Agent does NOT store anything, only validates.
+        """
+        data = request.get_json()
+        credential_value = data.get("credential_value")
+        
+        if not credential_value:
+            return jsonify({"valid": False, "error": "Missing credential_value"}), 400
+        
+        try:
+            # Import Reclaim SDK for validation
+            from reclaim_sdk.client import ReclaimClient
+            
+            # Test API key with Reclaim
+            client = ReclaimClient.configure(token=credential_value)
+            user_info = client.get("/api/users/current")
+            
+            # Get the calendar email from Reclaim
+            calendar_email = (
+                user_info.get("calendar_email") or
+                user_info.get("email") or
+                user_info.get("primary_email")
+            )
+            
+            return jsonify({
+                "valid": True,
+                "metadata": {
+                    "email": calendar_email,
+                    "user_id": user_info.get("id")
+                }
+            })
+        except Exception as e:
+            logger.error(f"Reclaim API key validation failed: {e}")
+            return jsonify({
+                "valid": False,
+                "error": str(e)
+            })
     
     return app
 

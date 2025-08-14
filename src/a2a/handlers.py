@@ -175,11 +175,14 @@ def get_credentials_manifest() -> Dict[str, Any]:
                 "required": True,
                 "flows": [
                     {
-                        "type": "manual_with_validation",
-                        "instructions": "Get your API key from Reclaim.ai:\n1. Go to https://app.reclaim.ai/settings/developer\n2. Click 'Generate New API Key'\n3. Name it 'Juli Integration'\n4. Copy the key (this is a long alphanumeric string)",
-                        "validation_endpoint": "/setup/validate-reclaim",
-                        "deep_link": "https://app.reclaim.ai/settings/developer",
-                        "format_hint": "Long alphanumeric API key"
+                        "type": "api_key",
+                        "format_hint": "Long alphanumeric API key",
+                        "validation_endpoint": "/validate/RECLAIM_API_KEY",
+                        "manual": {
+                            "instructions": "Get your API key from Reclaim.ai:\n1. Go to https://app.reclaim.ai/settings/developer\n2. Click 'Generate New API Key'\n3. Name it 'Juli Integration'\n4. Copy the key (this is a long alphanumeric string)",
+                            "deep_link": "https://app.reclaim.ai/settings/developer",
+                            "requirements": "You must have a Reclaim.ai account with the same calendar connected as your Nylas account"
+                        }
                     }
                 ]
             },
@@ -192,8 +195,10 @@ def get_credentials_manifest() -> Dict[str, Any]:
                 "flows": [
                     {
                         "type": "hosted_auth",
-                        "connect_url": "/setup/connect-url",
-                        "callback": "/api/nylas-calendar/callback",
+                        "connect_url": "/auth/connect",
+                        "callback_url": "/api/nylas-calendar/callback",
+                        "validation_endpoint": "/validate/NYLAS_GRANT_ID",
+                        "provider": "nylas",
                         "providers": ["google", "microsoft", "icloud"],
                         "provider_scopes": {
                             "google": [

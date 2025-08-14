@@ -93,19 +93,12 @@ python scripts/run_server.py
 
 2. Get the OAuth URL:
 ```bash
-curl http://localhost:5002/setup/connect-url
+curl http://localhost:5002/auth/connect
 ```
 
 3. Open the returned URL in your browser and complete the OAuth flow
 
-4. After successful authentication, you'll receive a grant_id:
-```json
-{
-  "success": true,
-  "grant_id": "ea2eefd4-4e6e-4e8f-ab64-ac203e5847f0",
-  "email": "your-email@gmail.com"
-}
-```
+4. After successful authentication, the agent redirects to Juli Brain with the grant_id (following A2A spec). The agent does NOT return JSON or store credentials.
 
 5. Save the grant_id in your `.env` file (optional, for testing):
 ```

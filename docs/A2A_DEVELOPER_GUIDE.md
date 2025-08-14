@@ -328,7 +328,7 @@ Available at `/.well-known/a2a-credentials.json`:
         {
           "type": "api_key",
           "instructions": "Get your API key from Reclaim.ai...",
-          "validation_endpoint": "/setup/validate-reclaim"
+          "validation_endpoint": "/validate/RECLAIM_API_KEY"
         }
       ]
     },
@@ -341,7 +341,7 @@ Available at `/.well-known/a2a-credentials.json`:
       "flows": [
         {
           "type": "hosted_auth",
-          "connect_url": "/setup/connect-url",
+          "connect_url": "/auth/connect",
           "callback": "/api/nylas-calendar/callback",
           "providers": ["google", "microsoft"]
         }

@@ -103,31 +103,50 @@ NYLAS_CLIENT_ID=...
 NYLAS_API_KEY=nyk_v0_...
 NYLAS_CALLBACK_URI=http://localhost:5002/api/nylas-calendar/callback
 
+# Juli Brain OAuth Callback (REQUIRED for A2A auth)
+JULI_BRAIN_CALLBACK_URI=https://api.juliai.com/auth/callback/juli-calendar
+
 # Task Management (Reclaim.ai)
-RECLAIM_API_KEY=your_api_key_here
+# Note: Agent doesn't store credentials - they're injected by Juli Brain
+RECLAIM_API_KEY=your_api_key_here  # Only for local testing
 
 # A2A Configuration
 A2A_PUBLIC_BASE_URL=http://localhost:5002
 A2A_DEV_SECRET=your-dev-secret  # Optional for development
 ```
 
-### OAuth Setup (Nylas)
+### Authentication (A2A Compliant)
 
-1. **Get the OAuth URL**:
+This agent follows the A2A authentication specification with a stateless architecture:
+
+1. **Get credential requirements**:
 ```bash
-curl http://localhost:5002/setup/connect-url
+curl http://localhost:5002/.well-known/a2a-credentials.json
 ```
 
-2. **Complete authentication** in your browser
+2. **OAuth Flow (Nylas Calendar)**:
+```bash
+# Get the OAuth URL
+curl http://localhost:5002/auth/connect
 
-3. **Receive grant_id** from callback:
-```json
-{
-  "success": true,
-  "grant_id": "...",
-  "email": "user@example.com"
-}
+# Complete authentication in browser
+# Agent redirects to Juli Brain with grant_id (not JSON response)
 ```
+
+3. **Validation Endpoints**:
+```bash
+# Validate Nylas grant
+curl -X POST http://localhost:5002/validate/NYLAS_GRANT_ID \
+  -H "Content-Type: application/json" \
+  -d '{"credential_value": "your_grant_id"}'
+
+# Validate Reclaim API key
+curl -X POST http://localhost:5002/validate/RECLAIM_API_KEY \
+  -H "Content-Type: application/json" \
+  -d '{"credential_value": "your_api_key"}'
+```
+
+**Important**: The agent is stateless and doesn't store credentials. All credentials are managed by Juli Brain and injected at runtime.
 
 ## 📚 Documentation
 
